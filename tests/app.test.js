@@ -12,6 +12,13 @@ describe('backend app', () => {
     expect(res.body).toHaveProperty('mongoReady');
   });
 
+  it('returns 503 readiness status when database is unavailable', async () => {
+    const res = await request(app).get('/readyz');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ ok: false, mongoReady: false });
+  });
+
   it('returns a structured 404 payload', async () => {
     const res = await request(app).get('/missing-route');
 

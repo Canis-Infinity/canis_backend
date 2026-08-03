@@ -17,7 +17,7 @@ Canis Den / Dashboard 共用 API，沿用 `iistw.com/backend` 的 Express、Mong
 cp .env.example .env
 ```
 
-`CORS_ORIGINS` 需要包含 canis-den 前台與 dashboard 後台的公開網址。
+Compose 預設 CORS 已包含 `link.canis.world` 與 `dashboard.canis.world`。只有網域不同時才設定 `CORS_ORIGINS_OVERRIDE`。
 
 聯絡表單會先寫入 MongoDB，再透過 Resend API 寄送管理員通知。請在 backend 的 `.env` 設定：
 
@@ -33,13 +33,13 @@ Dashboard 上傳的頭像會保存至 `public/uploads/profile`，Docker compose 
 
 MongoDB / 可選 MySQL 建置方式請看 [docs/database.md](./docs/database.md)。
 
-Docker container 內的 `127.0.0.1` 是 container 自己。這份 compose 會把 `host.docker.internal` 指到目前執行 Docker 的主機，所以 `.env` 預設使用：
+Linux Server 預設與參考專案相同使用 host network：
 
 ```bash
-MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
+MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"
 ```
 
-本機跑就連本機 MongoDB，Server 跑就連 Server 的 MongoDB。若 MongoDB 在另一台機器，改成那台機器的連線字串即可。
+Docker Desktop 本機需要在 `.env` 加上 `BACKEND_NETWORK_MODE=bridge` 與 `MONGODB_CONNECT_OVERRIDE="mongodb://host.docker.internal:27017/canis_world"`。兩個環境啟動指令相同；若 MongoDB 在另一台機器，也使用 `MONGODB_CONNECT_OVERRIDE` 指定。
 
 ## 後台帳號
 
@@ -51,8 +51,7 @@ MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
 npm run create-admin
 ```
 
-從 Windows 主機執行時，腳本會自動把 `.env` 中容器專用的
-`host.docker.internal` 轉為 `127.0.0.1`；在 Docker 容器內執行時則維持原值。
+從 Windows 主機直接執行時，腳本會把 `host.docker.internal` 轉為 `127.0.0.1`；在 container 內則使用 Compose 提供的連線位址。
 
 也可以直接在已啟動的 backend container 內建立：
 
@@ -77,6 +76,8 @@ npm run create-admin -- --username=canis22788 --email=admin@canis.world --lastNa
 ```bash
 docker compose up -d
 ```
+
+`/healthz` 是程序存活檢查；`/readyz` 只有在 MongoDB 已連線時才回傳 200。初次連線失敗時 backend 會每 5 秒自動重試。
 
 ## 驗證
 

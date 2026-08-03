@@ -7,8 +7,11 @@ services:
       - ./.env
     environment:
       PORT: 7344
+      MONGODB_CONNECT: ${MONGODB_CONNECT_OVERRIDE:-mongodb://127.0.0.1:27017/canis_world}
+      CORS_ORIGINS: ${CORS_ORIGINS_OVERRIDE:-http://localhost:7342,http://localhost:7343,https://canis.world,https://link.canis.world,https://dashboard.canis.world}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    network_mode: ${BACKEND_NETWORK_MODE:-host}
     volumes:
       - ./:/app
       - backend_node_modules:/app/node_modules
@@ -17,6 +20,12 @@ services:
     ports:
       - "7344:7344"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7344/readyz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   backend_node_modules:

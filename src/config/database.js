@@ -27,14 +27,23 @@ async function connectMongo() {
     return;
   }
 
-  try {
-    await mongoose.connect(env.mongoUri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
-    });
-    logger.info('mongodb initial connection successful');
-  } catch (err) {
-    logger.error({ err }, 'mongodb initial connection failed');
+  while (!mongoReady) {
+    try {
+      await mongoose.connect(env.mongoUri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+      });
+      logger.info({ mongoHost: new URL(env.mongoUri).host }, 'mongodb connection successful');
+      return;
+    } catch (err) {
+      logger.warn({
+        err,
+        mongoHost: new URL(env.mongoUri).host,
+      }, 'mongodb connection attempt failed');
+    }
+
+    logger.error('mongodb connection failed; retrying in 5 seconds');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 }
 

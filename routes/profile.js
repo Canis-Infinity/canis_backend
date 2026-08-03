@@ -1,22 +1,22 @@
 const express = require('express');
 const Profile = require('../models').profile;
-const defaultProfile = require('../data/default-profile.json');
 const { requireNormalAuth } = require('../src/middlewares/auth');
 const { uploadProfileImage } = require('../src/middlewares/upload');
 
 const router = express.Router();
 
 async function getProfileDocument() {
-  const existing = await Profile.findOne({ key: 'default' }).lean();
-  if (existing) return existing;
-
-  const created = await Profile.create({ key: 'default', ...defaultProfile });
-  return created.toObject();
+  return Profile.findOne({ key: 'default' }).lean();
 }
 
 router.get('/', async (req, res) => {
   try {
     const profile = await getProfileDocument();
+    if (!profile) {
+      return res.status(404).send({
+        message: '尚未建立 Canis Den 個人資料，請先由後台完成設定',
+      });
+    }
     return res.status(200).send({
       message: '成功取得 Canis Den 個人資料',
       data: profile,

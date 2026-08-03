@@ -7,7 +7,7 @@
 - 本機 database：`canis_world`
 - Server database：`canis_world`
 - 可以和 `iistw` 共用同一個 MongoDB 服務，但建議用不同 database name，避免資料混在一起。
-- Docker 連線字串：`MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"`
+- Linux Server 預設使用 host network 與 `127.0.0.1`；Docker Desktop 本機使用 bridge 與 `host.docker.internal`。
 - 如果你不透過 Docker、直接在主機跑 `npm start`，可改用：`MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"`
 
 ## MongoDB Collections
@@ -59,6 +59,8 @@ docker run -d --name mongo_canis_world -p 27017:27017 -v mongo_canis_world:/data
 
 ```bash
 MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
+BACKEND_NETWORK_MODE=bridge
+MONGODB_CONNECT_OVERRIDE="mongodb://host.docker.internal:27017/canis_world"
 ```
 
 ## Server 建立 MongoDB
@@ -92,11 +94,13 @@ Server backend `.env`：
 
 ```bash
 PORT=7344
-MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
+MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"
 PASSWORD_HASH="請換成正式 JWT secret"
 ALLOW_REGISTRATION=false
 CORS_ORIGINS=https://你的前台網域,https://你的後台網域,http://localhost:7342,http://localhost:7343
 ```
+
+Linux Server 不要設定 `BACKEND_NETWORK_MODE` 或 `MONGODB_CONNECT_OVERRIDE`；Compose 預設即為 host network 與 `127.0.0.1`。Windows Docker Desktop 才需要將兩者設為 `bridge` 與 `host.docker.internal`。
 
 ## 建第一個後台帳號
 
@@ -109,8 +113,7 @@ npm run create-admin
 ```
 
 腳本從 Windows 主機執行時，會自動將 `.env` 裡的
-`host.docker.internal` 改連 `127.0.0.1`。也可以在容器內執行，此時會直接使用
-`.env` 的容器連線位址：
+`host.docker.internal` 改連 `127.0.0.1`。也可以在容器內執行：
 
 ```powershell
 docker exec -it backend_canis_world npm run create-admin

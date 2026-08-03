@@ -39,6 +39,14 @@ function createApp() {
     });
   });
 
+  app.get('/readyz', (req, res) => {
+    const mongoReady = isMongoReady();
+    res.status(mongoReady ? 200 : 503).json({
+      ok: mongoReady,
+      mongoReady,
+    });
+  });
+
   app.use('/api/user', routes.auth);
   app.use('/api/profile', requireMongo, auditEvent('profile'), routes.profile);
   app.use('/api/contact', requireMongo, auditEvent('contact'), routes.contact);
