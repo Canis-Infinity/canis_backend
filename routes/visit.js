@@ -8,10 +8,12 @@ router.use((req, res, next) => {
 
 // 新增訪客記錄
 router.post('/', async (req, res) => {
-  let { ip } = req.body;
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const forwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor;
+  const ip = req.body?.ip || forwardedIp?.split(',')[0]?.trim() || req.ip || '';
 
   try {
-    await VisitHistory.create({ ipAddress: ip || '', time: new Date() });
+    await VisitHistory.create({ ipAddress: ip, time: new Date() });
     return res.send({
       message: '成功新增訪客記錄',
     });

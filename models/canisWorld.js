@@ -39,6 +39,8 @@ const contentSchema = new Schema(
   {
     headerLinkLabel: { type: String, default: "九宵基地" },
     headerLinkUrl: { type: String, default: "https://link.canis.world" },
+    heroImage: { type: String, default: "" },
+    heroEntryId: { type: String, default: "" },
     adultTitle: { type: String, default: "這裡是成年人的日常基地" },
     adultDescription: {
       type: String,

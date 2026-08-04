@@ -29,6 +29,8 @@ const INITIAL_DATA = {
   content: {
     headerLinkLabel: "九宵基地",
     headerLinkUrl: "https://link.canis.world",
+    heroImage: "",
+    heroEntryId: "",
     adultTitle: "這裡是成年人的日常基地",
     adultDescription:
       "內容尺度會隨日記而變化；公開分享與轉載前，請先尊重 Canis 的界線。",
