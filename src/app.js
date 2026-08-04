@@ -49,6 +49,7 @@ function createApp() {
 
   app.use('/api/user', routes.auth);
   app.use('/api/profile', requireMongo, auditEvent('profile'), routes.profile);
+  app.use('/api/canis-world', requireMongo, auditEvent('canis-world'), routes.canisWorld);
   app.use('/api/contact', requireMongo, auditEvent('contact'), routes.contact);
   app.use('/api/visit', requireMongo, auditEvent('visit'), routes.visit);
   app.use('/api/event-logs', requireMongo, routes.eventLogs);

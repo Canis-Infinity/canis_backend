@@ -19,6 +19,8 @@ const memoryUpload = multer();
 
 const profileUploadDirectory = path.join(__dirname, '../../public/uploads/profile');
 fs.mkdirSync(profileUploadDirectory, { recursive: true });
+const canisWorldUploadDirectory = path.join(__dirname, '../../public/uploads/canis-world');
+fs.mkdirSync(canisWorldUploadDirectory, { recursive: true });
 
 const profileImageUpload = createDiskUpload({
   destination: profileUploadDirectory,
@@ -33,6 +35,19 @@ const profileImageUpload = createDiskUpload({
   },
 }).single('avatar');
 
+const canisWorldMediaUpload = createDiskUpload({
+  destination: canisWorldUploadDirectory,
+  filename(file) {
+    const extensions = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+    const extension = extensions[file.mimetype] || '.jpg';
+    return `daily-${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+  },
+  limits: { fileSize: 12 * 1024 * 1024, files: 8 },
+  fileFilter(req, file, callback) {
+    callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+  },
+}).array('media', 8);
+
 function uploadProfileImage(req, res, next) {
   profileImageUpload(req, res, (error) => {
     if (error) {
@@ -44,7 +59,19 @@ function uploadProfileImage(req, res, next) {
   });
 }
 
+function uploadCanisWorldMedia(req, res, next) {
+  canisWorldMediaUpload(req, res, (error) => {
+    if (error) {
+      error.statusCode = 400;
+      return next(error);
+    }
+    if (!req.files?.length) return res.status(400).send('請選擇 JPG、PNG 或 WEBP 圖片');
+    next();
+  });
+}
+
 module.exports = {
   memoryUpload,
   uploadProfileImage,
+  uploadCanisWorldMedia,
 };
