@@ -17,7 +17,7 @@ Canis Den / Dashboard 共用 API，沿用 `iistw.com/backend` 的 Express、Mong
 cp .env.example .env
 ```
 
-Compose 預設 CORS 已包含 `link.canis.world` 與 `dashboard.canis.world`。只有網域不同時才設定 `CORS_ORIGINS_OVERRIDE`。
+Compose 預設 CORS 已包含 `link.canis.world` 與 `dashboard.canis.world`。只有網域不同時才修改 `CORS_ORIGINS`。
 
 聯絡表單會先寫入 MongoDB，再透過 Resend API 寄送管理員通知。請在 backend 的 `.env` 設定：
 
@@ -39,7 +39,7 @@ Linux Server 預設與參考專案相同使用 host network：
 MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"
 ```
 
-Docker Desktop 本機需要在 `.env` 加上 `BACKEND_NETWORK_MODE=bridge` 與 `MONGODB_CONNECT_OVERRIDE="mongodb://host.docker.internal:27017/canis_world"`。兩個環境啟動指令相同；若 MongoDB 在另一台機器，也使用 `MONGODB_CONNECT_OVERRIDE` 指定。
+Docker Desktop 本機需要在 `.env` 加上 `BACKEND_NETWORK_MODE=bridge`，並將 `MONGODB_CONNECT` 設為 `mongodb://host.docker.internal:27017/canis_world`。兩個環境啟動指令相同；若 MongoDB 在另一台機器，也直接以 `MONGODB_CONNECT` 指定。
 
 ## 後台帳號
 

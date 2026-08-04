@@ -58,9 +58,8 @@ docker run -d --name mongo_canis_world -p 27017:27017 -v mongo_canis_world:/data
 然後 backend `.env` 設：
 
 ```bash
-MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
 BACKEND_NETWORK_MODE=bridge
-MONGODB_CONNECT_OVERRIDE="mongodb://host.docker.internal:27017/canis_world"
+MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
 ```
 
 ## Server 建立 MongoDB
@@ -100,7 +99,7 @@ ALLOW_REGISTRATION=false
 CORS_ORIGINS=https://你的前台網域,https://你的後台網域,http://localhost:7342,http://localhost:7343
 ```
 
-Linux Server 不要設定 `BACKEND_NETWORK_MODE` 或 `MONGODB_CONNECT_OVERRIDE`；Compose 預設即為 host network 與 `127.0.0.1`。Windows Docker Desktop 才需要將兩者設為 `bridge` 與 `host.docker.internal`。
+Linux Server 若 MongoDB 安裝在主機上，保留預設的 host network，並將 `MONGODB_CONNECT` 設為 `mongodb://127.0.0.1:27017/canis_world`。Windows Docker Desktop 才需要將 network 設為 `bridge`，並以 `host.docker.internal` 連接主機上的 MongoDB。
 
 ## 建第一個後台帳號
 
