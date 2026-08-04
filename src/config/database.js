@@ -6,6 +6,19 @@ mongoose.set('bufferCommands', false);
 
 let mongoReady = false;
 
+function getMongoCandidates(mongoUri) {
+  const candidates = [mongoUri];
+  const parsed = new URL(mongoUri);
+
+  if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+    const dockerDesktopUri = new URL(mongoUri);
+    dockerDesktopUri.hostname = 'host.docker.internal';
+    candidates.push(dockerDesktopUri.toString());
+  }
+
+  return candidates;
+}
+
 mongoose.connection.on('connected', () => {
   mongoReady = true;
   logger.info('mongodb connected');
@@ -27,22 +40,26 @@ async function connectMongo() {
     return;
   }
 
+  const candidates = getMongoCandidates(env.mongoUri);
+
   while (!mongoReady) {
-    try {
-      await mongoose.connect(env.mongoUri, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
-      });
-      logger.info({ mongoHost: new URL(env.mongoUri).host }, 'mongodb connection successful');
-      return;
-    } catch (err) {
-      logger.warn({
-        err,
-        mongoHost: new URL(env.mongoUri).host,
-      }, 'mongodb connection attempt failed');
+    for (const mongoUri of candidates) {
+      try {
+        await mongoose.connect(mongoUri, {
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 5000,
+        });
+        logger.info({ mongoHost: new URL(mongoUri).host }, 'mongodb connection successful');
+        return;
+      } catch (err) {
+        logger.warn({
+          err,
+          mongoHost: new URL(mongoUri).host,
+        }, 'mongodb connection attempt failed');
+      }
     }
 
-    logger.error('mongodb connection failed; retrying in 5 seconds');
+    logger.error({ mongoHosts: candidates.map((uri) => new URL(uri).host) }, 'mongodb connection failed; retrying in 5 seconds');
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 }
@@ -63,6 +80,7 @@ function isMongoReady() {
 
 module.exports = {
   connectMongo,
+  getMongoCandidates,
   requireMongo,
   isMongoReady,
 };

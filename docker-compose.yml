@@ -7,11 +7,10 @@ services:
       - ./.env
     environment:
       PORT: 7344
-      MONGODB_CONNECT: ${MONGODB_CONNECT:-mongodb://127.0.0.1:27017/canis_world}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:7342,http://localhost:7343,https://canis.world,https://link.canis.world,https://dashboard.canis.world}
+      MONGODB_CONNECT: mongodb://127.0.0.1:27017/canis_world
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    network_mode: ${BACKEND_NETWORK_MODE:-host}
+    network_mode: ${CANIS_BACKEND_NETWORK_MODE:-host}
     volumes:
       - ./:/app
       - backend_node_modules:/app/node_modules

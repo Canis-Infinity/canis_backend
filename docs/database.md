@@ -7,7 +7,7 @@
 - 本機 database：`canis_world`
 - Server database：`canis_world`
 - 可以和 `iistw` 共用同一個 MongoDB 服務，但建議用不同 database name，避免資料混在一起。
-- Linux Server 預設使用 host network 與 `127.0.0.1`；Docker Desktop 本機使用 bridge 與 `host.docker.internal`。
+- Backend 在 Linux Server 預設與參考專案相同使用 host network 與 `127.0.0.1`。
 - 如果你不透過 Docker、直接在主機跑 `npm start`，可改用：`MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"`
 
 ## MongoDB Collections
@@ -58,8 +58,8 @@ docker run -d --name mongo_canis_world -p 27017:27017 -v mongo_canis_world:/data
 然後 backend `.env` 設：
 
 ```bash
-BACKEND_NETWORK_MODE=bridge
-MONGODB_CONNECT="mongodb://host.docker.internal:27017/canis_world"
+MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"
+CANIS_BACKEND_NETWORK_MODE=bridge
 ```
 
 ## Server 建立 MongoDB
@@ -99,7 +99,7 @@ ALLOW_REGISTRATION=false
 CORS_ORIGINS=https://你的前台網域,https://你的後台網域,http://localhost:7342,http://localhost:7343
 ```
 
-Linux Server 若 MongoDB 安裝在主機上，保留預設的 host network，並將 `MONGODB_CONNECT` 設為 `mongodb://127.0.0.1:27017/canis_world`。Windows Docker Desktop 才需要將 network 設為 `bridge`，並以 `host.docker.internal` 連接主機上的 MongoDB。
+Linux Server 不設定 `CANIS_BACKEND_NETWORK_MODE`，Compose 便會使用與參考 backend 一致的 host network。舊的 `BACKEND_NETWORK_MODE` 與 `MONGODB_CONNECT_OVERRIDE` 即使仍在 `.env` 也不會生效。Docker Desktop 本機設定 `CANIS_BACKEND_NETWORK_MODE=bridge`，backend 會在 `127.0.0.1` 失敗後自動改試 `host.docker.internal`。
 
 ## 建第一個後台帳號
 

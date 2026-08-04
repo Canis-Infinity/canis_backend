@@ -39,7 +39,7 @@ Linux Server 預設與參考專案相同使用 host network：
 MONGODB_CONNECT="mongodb://127.0.0.1:27017/canis_world"
 ```
 
-Docker Desktop 本機需要在 `.env` 加上 `BACKEND_NETWORK_MODE=bridge`，並將 `MONGODB_CONNECT` 設為 `mongodb://host.docker.internal:27017/canis_world`。兩個環境啟動指令相同；若 MongoDB 在另一台機器，也直接以 `MONGODB_CONNECT` 指定。
+Backend 在 Linux Server 預設與參考專案相同使用 host network，並連接專屬的 `mongodb://127.0.0.1:27017/canis_world`。舊的 `BACKEND_NETWORK_MODE` 與 `MONGODB_CONNECT_OVERRIDE` 已不再生效；Docker Desktop 本機才以 `CANIS_BACKEND_NETWORK_MODE=bridge` 覆蓋 network。
 
 ## 後台帳號
 
