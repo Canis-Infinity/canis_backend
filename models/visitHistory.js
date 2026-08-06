@@ -8,6 +8,16 @@ const visitHistorySchema = new Schema(
       default: '',
       index: true,
     },
+    site: {
+      type: String,
+      enum: ['canis-den', 'frontend'],
+      default: 'canis-den',
+      index: true,
+    },
+    path: {
+      type: String,
+      default: '',
+    },
     time: {
       type: Date,
       default: Date.now,
@@ -18,5 +28,6 @@ const visitHistorySchema = new Schema(
 );
 
 visitHistorySchema.index({ time: -1 });
+visitHistorySchema.index({ site: 1, time: -1 });
 
 module.exports = mongoose.model('VisitHistory', visitHistorySchema);
