@@ -8,7 +8,7 @@ const statusSchema = new Schema(
     doing: { type: String, default: "整理日常基地" },
     location: { type: String, default: "九宵基地" },
     note: { type: String, default: "今天也慢慢生活。" },
-    completeness: { type: Number, min: 0, max: 100, default: 100 },
+    completeness: { type: Number, min: -100, max: 100, default: 100 },
   },
   { _id: false },
 );
@@ -97,7 +97,7 @@ const contentSchema = new Schema(
 
 const entrySchema = new Schema(
   {
-    title: { type: String, required: true },
+    title: { type: String, required() { return this.draft !== true; } },
     excerpt: { type: String, default: "" },
     content: { type: String, default: "" },
     category: { type: String, default: "daily" },
@@ -107,6 +107,7 @@ const entrySchema = new Schema(
     images: [{ type: String }],
     featured: { type: Boolean, default: false },
     published: { type: Boolean, default: true },
+    draft: { type: Boolean, default: false },
     priority: { type: Number, default: 100 },
   },
   { timestamps: true },
@@ -114,25 +115,23 @@ const entrySchema = new Schema(
 
 const faqSchema = new Schema(
   {
-    question: { type: String, required: true },
-    answer: { type: String, required: true },
+    question: { type: String, required() { return this.draft !== true; } },
+    answer: { type: String, required() { return this.draft !== true; } },
     priority: { type: Number, default: 100 },
     published: { type: Boolean, default: true },
+    draft: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
 
 const featureCardSchema = new Schema(
   {
-    title: { type: String, required: true },
-    description: { type: String, required: true },
-    icon: {
-      type: String,
-      enum: ["home", "map-pin", "calendar", "paw-print", "heart", "camera"],
-      default: "home",
-    },
+    title: { type: String, required() { return this.draft !== true; } },
+    description: { type: String, required() { return this.draft !== true; } },
+    icon: { type: String, default: "home" },
     priority: { type: Number, default: 100 },
     published: { type: Boolean, default: true },
+    draft: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

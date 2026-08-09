@@ -181,13 +181,13 @@ function publicData(document) {
     content: source.content,
     footer: source.footer,
     faqs: [...(source.faqs || [])]
-      .filter((item) => item.published)
+      .filter((item) => item.published !== false && item.draft !== true)
       .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0)),
     featureCards: [...(source.featureCards || [])]
-      .filter((item) => item.published)
+      .filter((item) => item.published !== false && item.draft !== true)
       .sort((a, b) => (Number(a.priority) || 0) - (Number(b.priority) || 0)),
     entries: [...(source.entries || [])]
-      .filter((entry) => entry.published)
+      .filter((entry) => entry.published !== false && entry.draft !== true)
       .sort((a, b) => {
         const priorityDelta =
           (Number(a.priority) || 0) - (Number(b.priority) || 0);
