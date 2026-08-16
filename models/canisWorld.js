@@ -47,8 +47,8 @@ const contentSchema = new Schema(
       default:
         "內容尺度會隨日記而變化；公開分享與轉載前，請先尊重 Canis 的界線。",
     },
-    galleryBadge: { type: String, default: "照片牆" },
-    galleryTitle: { type: String, default: "最近被帶回基地的畫面" },
+    galleryBadge: { type: String, default: "貼文" },
+    galleryTitle: { type: String, default: "最近的日常貼文" },
     aboutBadge: { type: String, default: "關於這裡" },
     aboutTitle: { type: String, default: "Canis 的生活，不是另一份履歷" },
     aboutDescription: {

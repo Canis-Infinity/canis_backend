@@ -3,6 +3,15 @@ const CanisWorld = require("../models").canisWorld;
 const { requireNormalAuth } = require("../src/middlewares/auth");
 const { uploadCanisWorldMedia } = require("../src/middlewares/upload");
 
+const MAX_FEATURED_ENTRIES = 2;
+
+function hasReachedFeaturedLimit(document, excludedEntryId) {
+  return document.entries.filter(
+    (entry) =>
+      entry.featured === true && String(entry._id) !== String(excludedEntryId || ""),
+  ).length >= MAX_FEATURED_ENTRIES;
+}
+
 const router = express.Router();
 
 const INITIAL_DATA = {
@@ -34,8 +43,8 @@ const INITIAL_DATA = {
     adultTitle: "這裡是成年人的日常基地",
     adultDescription:
       "內容尺度會隨日記而變化；公開分享與轉載前，請先尊重 Canis 的界線。",
-    galleryBadge: "照片牆",
-    galleryTitle: "最近被帶回基地的畫面",
+    galleryBadge: "貼文",
+    galleryTitle: "最近的日常貼文",
     aboutBadge: "關於這裡",
     aboutTitle: "Canis 的生活，不是另一份履歷",
     aboutDescription:
@@ -243,6 +252,11 @@ router.patch("/settings", requireNormalAuth, async (req, res) => {
 router.post("/entries", requireNormalAuth, async (req, res) => {
   try {
     const document = await getDocument();
+    if (req.body.featured === true && hasReachedFeaturedLimit(document)) {
+      return res
+        .status(409)
+        .send(`精選日常最多只能設定 ${MAX_FEATURED_ENTRIES} 筆`);
+    }
     document.entries.push(req.body);
     await document.save();
     return res.status(201).send({
@@ -259,6 +273,15 @@ router.patch("/entries/:entryId", requireNormalAuth, async (req, res) => {
     const document = await getDocument();
     const entry = document.entries.id(req.params.entryId);
     if (!entry) return res.status(404).send("找不到指定日常紀錄");
+    if (
+      req.body.featured === true &&
+      entry.featured !== true &&
+      hasReachedFeaturedLimit(document, entry._id)
+    ) {
+      return res
+        .status(409)
+        .send(`精選日常最多只能設定 ${MAX_FEATURED_ENTRIES} 筆`);
+    }
     entry.set(req.body);
     await document.save();
     return res.status(200).send({
