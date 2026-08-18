@@ -7,7 +7,7 @@ services:
       - ./.env
     environment:
       PORT: 7344
-      MONGODB_CONNECT: mongodb://127.0.0.1:27017/canis_world
+      MONGODB_CONNECT: ${MONGODB_CONNECT:-mongodb://127.0.0.1:27017/canis_world}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     network_mode: ${CANIS_BACKEND_NETWORK_MODE:-host}
