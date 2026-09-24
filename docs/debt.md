@@ -50,3 +50,15 @@
 ## 修改帳號名稱
 
 PATCH /api/debt/auth/profile 需登入，以 JSON 的 name 欄位更新自己的名稱；名稱去除前後空白後需為 1 至 80 個字元，其他欄位不接受修改。
+
+
+## 程式分工
+
+- `src/debt/routes.js`：組裝路由、索引初始化及 middleware。
+- `src/debt/routes/`：帳號、債務、管理員 HTTP 路由；負責讀取請求與回傳狀態碼。
+- `src/debt/services/`：帳號審核、密碼更新、session 生命週期、債務與借還款規則及資料庫操作。
+- `src/debt/middleware.js`：請求檢查、登入與管理員權限、統一錯誤回應。
+- `src/debt/config.js`：金額與紀錄上限、密碼成本、session 與登入限流設定。
+- `src/debt/utils/`：HTTP 錯誤、版本檢查、cookie 與回應序列化。
+
+調整業務規則應放在 service；路由保留權限 middleware。API 路徑、回應格式、資料集合與樂觀鎖定版本均維持原有契約。

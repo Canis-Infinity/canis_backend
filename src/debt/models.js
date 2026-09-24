@@ -1,3 +1,4 @@
+const { maxAmount } = require('./config');
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
@@ -22,7 +23,7 @@ const paymentSchema = new Schema({
   bankCode: String,
   bankAccount: String,
 }, { _id: false });
-const money = { type: Number, required: true, min: 1, max: 999999999999, validate: Number.isSafeInteger };
+const money = { type: Number, required: true, min: 1, max: maxAmount, validate: Number.isSafeInteger };
 const repaymentSchema = new Schema({
   date: { type: String, required: true },
   amount: money,

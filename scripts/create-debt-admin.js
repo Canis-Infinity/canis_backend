@@ -1,3 +1,4 @@
+const { passwordCost } = require('../src/debt/config');
 const readline = require('readline-sync');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
@@ -42,7 +43,7 @@ async function main() {
   const existing = await DebtUser.findOne({ email: input.email });
   if (existing && !readline.keyInYNStrict('Promote/reset this existing debt account?')) return;
   const user = existing || new DebtUser({ email: input.email });
-  Object.assign(user, { name: input.name, passwordHash: await bcrypt.hash(input.password, 12), role: 'admin', status: 'approved' });
+  Object.assign(user, { name: input.name, passwordHash: await bcrypt.hash(input.password, passwordCost), role: 'admin', status: 'approved' });
   await user.save();
   await DebtSession.deleteMany({ user: user._id });
   console.log('債務管理員已建立／更新。');
