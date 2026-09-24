@@ -7,6 +7,7 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '請選擇日期').refine((
 }, '日期無效');
 const amount = z.number().int('金額必須是新臺幣整數').min(1, '金額必須大於 0').max(maxAmount, '金額超出可記錄範圍');
 const payment = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('other'), description: z.string().trim().min(1, '請填寫還款方式').max(100, '還款方式最多 100 個字元') }).strict(),
   z.object({ method: z.literal('bank'), bankCode: z.string().regex(/^\d{3}$/, '銀行代碼需為 3 位數字'), bankAccount: z.string().regex(/^\d{5,20}$/, '銀行帳號需為 5–20 位數字') }).strict(),
   ...['line_pay_money', 'ipass_money', 'cash'].map((method) => z.object({ method: z.literal(method) }).strict()),
 ]);

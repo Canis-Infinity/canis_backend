@@ -32,6 +32,24 @@ describe('independent debt accounts and records', () => {
     [owner, other, admin] = await Promise.all([account(), account(), account('admin')]);
   });
   afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
+  it('validates and persists custom payment methods for debts and repayments', async () => {
+    for (const description of [undefined, '', '   ', '字'.repeat(101)]) {
+      const result = await call(owner, 'post', '/debts', { ...input, payment: { method: 'other', description } });
+      expect(result.status).toBe(422);
+    }
+    const payment = { method: 'other', description: '  郵政劃撥  ' };
+    const created = await call(owner, 'post', '/debts', { ...input, payment });
+    expect(created.status).toBe(201);
+    let debt = created.body.debt;
+    expect(debt.payment).toEqual({ method: 'other', description: '郵政劃撥' });
+    expect((await call(owner, 'post', `/debts/${debt.id}/repayments`, { ...repayment, payment: { method: 'other', description: '' }, version: debt.version })).status).toBe(422);
+    debt = (await call(owner, 'post', `/debts/${debt.id}/repayments`, { ...repayment, payment, version: debt.version })).body.debt;
+    expect(debt.repayments[0].payment).toEqual(debt.payment);
+    debt = (await call(owner, 'put', `/debts/${debt.id}`, { ...input, payment: { method: 'cash' }, version: debt.version })).body.debt;
+    expect(debt.payment).toEqual({ method: 'cash' });
+    const stored = (await call(owner, 'get', '/debts')).body.debts[0];
+    expect(stored.repayments[0].payment.description).toBe('郵政劃撥');
+  });
   it('changes only the authenticated password and invalidates every session', async () => {
     const currentPassword = 'old-password-for-test';
     await DebtUser.updateOne({ _id: owner.user._id }, { passwordHash: await bcrypt.hash(currentPassword, 4) });

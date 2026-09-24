@@ -19,9 +19,10 @@ const sessionSchema = new Schema({
   expiresAt: { type: Date, required: true, expires: 0 },
 }, { timestamps: true, autoCreate: false, autoIndex: false });
 const paymentSchema = new Schema({
-  method: { type: String, enum: ['bank', 'line_pay_money', 'ipass_money', 'cash'], required: true },
+  method: { type: String, enum: ['bank', 'line_pay_money', 'ipass_money', 'cash', 'other'], required: true },
   bankCode: String,
   bankAccount: String,
+  description: { type: String, trim: true, maxlength: 100, required: function () { return this.method === 'other'; } },
 }, { _id: false });
 const money = { type: Number, required: true, min: 1, max: maxAmount, validate: Number.isSafeInteger };
 const repaymentSchema = new Schema({
