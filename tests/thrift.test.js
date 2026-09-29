@@ -23,6 +23,23 @@ describe('thrift standalone MongoDB shop', () => {
   beforeAll(async()=> { mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri(), { dbName: 'thrift_test' }); await ensureThriftIndexes(); app = createApp(); },180000);
   beforeEach(async()=> { await Promise.all([User.deleteMany({}),Session.deleteMany({}),Store.deleteMany({}),Image.deleteMany({})]); admin=await account('admin');member=await account();image=String((await Image.create({ data:png,mime:'image/png',name:'test.png',owner:admin.user._id }))._id); });
   afterAll(async()=> { await mongoose.disconnect();await mongo?.stop(); });
+  it('keeps inactive cart product details available without listing or selling them',async()=>{
+    const inactive=await addProduct({name:'收藏割愛',active:false,quantity:3});
+    const other=await addProduct({name:'其他商品'});
+    const catalog=await call(null,'get','/catalog');
+    expect(catalog.body.products.map(p=>p.id)).toEqual([other.id]);
+    const cart=await call(null,'get',`/cart-products?ids=${inactive.id}`);
+    expect(cart.status).toBe(200);
+    expect(cart.body.products).toEqual([{id:inactive.id,name:inactive.name,price:inactive.price,images:inactive.images,quantity:3,active:false,deleted:false}]);
+    expect((await call(null,'get','/cart-products?ids=invalid')).status).toBe(422);
+    expect((await call(null,'get','/cart-products')).body.products).toEqual([]);
+    expect((await call(null,'post','/checkout',checkout([{product:inactive.id,quantity:1}]))).status).not.toBe(201);
+    expect((await commerce.read()).orders).toHaveLength(0);
+    await call(admin,'delete',`/admin/products/${inactive.id}`,{version:inactive.version});
+    const removed=await call(null,'get',`/cart-products?ids=${inactive.id}`);
+    expect(removed.body.products[0]).toMatchObject({name:inactive.name,images:inactive.images,price:inactive.price,active:false,deleted:true});
+    expect((await call(null,'post','/checkout',checkout([{product:inactive.id,quantity:1}]))).status).not.toBe(201);
+  });
   it('registers active independent accounts and authenticates immediately',async()=>{
     const body={name:'新會員',email:'NEW@example.test',phone:'0912345678',contact,password:'test-password-2026'};
     expect((await call(null,'post','/auth/register',body)).status).toBe(201);

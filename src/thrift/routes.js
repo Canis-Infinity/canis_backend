@@ -14,6 +14,13 @@ router.use(requestGuard);
 router.use(asyncRoute(async (req, res, next) => { await ensureThriftIndexes(); next(); }));
 router.use('/auth', require('./routes/auth'));
 router.get('/catalog', asyncRoute(async (req, res) => { const s = await commerce.read(); res.json({ products: s.products.filter(p => !p.deleted && p.active), categories: s.categories }); }));
+router.get('/cart-products', asyncRoute(async (req, res) => {
+  const query = z.object({ ids: z.string().max(1249).default('') }).parse(req.query);
+  const ids = new Set(z.array(schema.id).max(50).parse(query.ids ? query.ids.split(',') : []));
+  const s = await commerce.read();
+  const products = s.products.filter(p => ids.has(p.id)).map(({ id, name, price, images, quantity, active, deleted }) => ({ id, name, price, images, quantity, active: active && !deleted, deleted: !!deleted }));
+  res.json({ products });
+}));
 router.get('/images/:id', asyncRoute(async (req, res) => {
   const image = await Image.findById(schema.id.parse(req.params.id)).select('+data');
   if (!image) throw fail(404, '圖片不存在');

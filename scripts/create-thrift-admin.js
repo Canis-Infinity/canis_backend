@@ -39,13 +39,12 @@ async function main() {
     name: askValidated('Name: ', register.shape.name),
     email: askValidated('Email: ', register.shape.email),
     phone: askValidated('Phone: ', register.shape.phone),
-    contact: { platform: askValidated('Contact platform (IG/LINE/facebook/Discord): ', register.shape.contact.shape.platform), account: askValidated('Contact account: ', register.shape.contact.shape.account) },
     password: askValidated('Password (12+ characters): ', register.shape.password, { hideEchoBack: true }),
   };
   const existing = await ThriftUser.findOne({ email: input.email });
   if (existing && !readline.keyInYNStrict('Promote/reset this existing thrift account?')) return;
   const user = existing || new ThriftUser({ email: input.email });
-  Object.assign(user, { name: input.name, phone: input.phone, contact: input.contact, passwordHash: await bcrypt.hash(input.password, passwordCost), role: 'admin', status: 'active' });
+  Object.assign(user, { name: input.name, phone: input.phone, passwordHash: await bcrypt.hash(input.password, passwordCost), role: 'admin', status: 'active' });
   await user.save();
   await ThriftUser.updateOne({ _id: user._id }, { $inc: { credentialVersion: 1 } });
   await ThriftSession.deleteMany({ user: user._id });
