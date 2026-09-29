@@ -1,0 +1,14 @@
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
+const connection = mongoose.connection;
+const options = { timestamps: true, optimisticConcurrency: true, autoCreate: false, autoIndex: false };
+const contact = new Schema({ platform: String, account: String }, { _id: false });
+const user = new Schema({ name: String, email: { type: String, unique: true }, phone: String, contact, passwordHash: { type: String, select: false }, credentialVersion: { type: Number, default: 0 }, role: { type: String, enum: ['user', 'admin'], default: 'user' }, status: { type: String, enum: ['active', 'suspended'], default: 'active' } }, options);
+const session = new Schema({ user: { type: Schema.Types.ObjectId, index: true }, tokenHash: { type: String, unique: true }, credentialVersion: { type: Number, default: 0 }, expiresAt: { type: Date, expires: 0 } }, options);
+const image = new Schema({ data: { type: Buffer, select: false }, mime: String, name: String, owner: Schema.Types.ObjectId }, options);
+const store = new Schema({ _id: { type: String, default: 'shop' }, products: [Schema.Types.Mixed], categories: [Schema.Types.Mixed], orders: [Schema.Types.Mixed], receipts: [Schema.Types.Mixed] }, options);
+const definitions = { ThriftUser: ['users', user], ThriftSession: ['sessions', session], ThriftStore: ['store', store], ThriftImage: ['images', image] };
+for (const [name, [collection, schema]] of Object.entries(definitions)) module.exports[name] = connection.model(name, schema, `thrift_${collection}`);
+let ready;
+module.exports.ensureThriftIndexes = () => ready ||= Promise.all(Object.keys(definitions).map(name => module.exports[name].createIndexes())).catch(e => { ready = undefined; throw e; });
+module.exports.connection = connection;
