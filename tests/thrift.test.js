@@ -40,6 +40,32 @@ describe('thrift standalone MongoDB shop', () => {
     expect(removed.body.products[0]).toMatchObject({name:inactive.name,images:inactive.images,price:inactive.price,active:false,deleted:true});
     expect((await call(null,'post','/checkout',checkout([{product:inactive.id,quantity:1}]))).status).not.toBe(201);
   });
+  it('projects management reads without changing the full response or transaction state', async () => {
+    const product = await addProduct();
+    await call(null, 'post', '/checkout', checkout([{ product: product.id, quantity: 1 }]));
+    const products = await call(admin, 'get', '/admin/data?section=products');
+    expect(products.status).toBe(200);
+    expect(products.body.products).toHaveLength(1);
+    expect(products.body.orders).toEqual([]);
+    expect(products.body.users).toEqual([]);
+    const categories = await call(admin, 'get', '/admin/data?section=categories');
+    expect(categories.body.products).toEqual([]);
+    const users = await call(admin, 'get', '/admin/data?section=users');
+    expect(users.body.products).toEqual([]);
+    expect(users.body.users).toHaveLength(2);
+    const orders = await call(admin, 'get', '/admin/data?section=orders');
+    expect(orders.body.orders).toHaveLength(1);
+    expect(orders.body.products).toHaveLength(1);
+    const full = await call(admin, 'get', '/admin/data');
+    expect(full.body.orders).toHaveLength(1);
+    expect(full.body.users).toHaveLength(2);
+    expect((await call(member, 'get', '/admin/data?section=products')).status).toBe(403);
+    expect((await call(admin, 'get', '/admin/data?section=unknown')).status).toBe(422);
+    const projected = await commerce.read('products categories');
+    expect(projected.orders).toBeUndefined();
+    expect(projected.receipts).toBeUndefined();
+    expect((await commerce.read()).orders).toHaveLength(1);
+  });
   it('registers active independent accounts and authenticates immediately',async()=>{
     const body={name:'新會員',email:'NEW@example.test',phone:'0912345678',contact,password:'test-password-2026'};
     expect((await call(null,'post','/auth/register',body)).status).toBe(201);

@@ -4,11 +4,11 @@ const { z } = require('zod');
 const { ThriftStore: Store, ThriftImage: Image } = require('../models');
 const schema = require('../validation');
 const { fail } = require('../utils/http');
-async function read() {
-  const existing = await Store.findById('shop').lean();
+async function read(projection) {
+  const existing = await Store.findById('shop').select(projection).lean();
   if (existing) return existing;
   try { await Store.updateOne({ _id: 'shop' }, { $setOnInsert: { products: [], categories: [], orders: [], receipts: [], __v: 0 } }, { upsert: true }); } catch (e) { if (e.code !== 11000) throw e; }
-  return Store.findById('shop').lean();
+  return Store.findById('shop').select(projection).lean();
 }
 // Compare-and-swap commits all inventory and order changes together, including on standalone MongoDB.
 async function mutate(action) {

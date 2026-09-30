@@ -13,11 +13,11 @@ const { requestGuard, requireSession, requireAdmin, errorHandler } = require('./
 router.use(requestGuard);
 router.use(asyncRoute(async (req, res, next) => { await ensureThriftIndexes(); next(); }));
 router.use('/auth', require('./routes/auth'));
-router.get('/catalog', asyncRoute(async (req, res) => { const s = await commerce.read(); res.json({ products: s.products.filter(p => !p.deleted && p.active), categories: s.categories }); }));
+router.get('/catalog', asyncRoute(async (req, res) => { const s = await commerce.read('products categories'); res.json({ products: s.products.filter(p => !p.deleted && p.active), categories: s.categories }); }));
 router.get('/cart-products', asyncRoute(async (req, res) => {
   const query = z.object({ ids: z.string().max(1249).default('') }).parse(req.query);
   const ids = new Set(z.array(schema.id).max(50).parse(query.ids ? query.ids.split(',') : []));
-  const s = await commerce.read();
+  const s = await commerce.read('products');
   const products = s.products.filter(p => ids.has(p.id)).map(({ id, name, price, images, quantity, active, deleted }) => ({ id, name, price, images, quantity, active: active && !deleted, deleted: !!deleted }));
   res.json({ products });
 }));
@@ -41,7 +41,16 @@ router.get('/order-link/:token', asyncRoute(async (req, res) => {
   res.json({ order: { number, items, total, status, createdAt } });
 }));
 router.use('/admin', requireSession, requireAdmin);
-router.get('/admin/data', asyncRoute(async (req, res) => { const s = await commerce.read(); res.json({ products: s.products.filter(p => !p.deleted), categories: s.categories, orders: s.orders, users: (await User.find().sort({ createdAt: -1 })).map(publicUser) }); }));
+router.get('/admin/data', asyncRoute(async (req, res) => {
+  const { section } = z.object({ section: z.enum(['products', 'categories', 'orders', 'users']).optional() }).parse(req.query);
+  // Older clients retain the full response; each management page requests only its dependencies.
+  const projection = { products: 'products categories', categories: 'categories', orders: 'products categories orders' };
+  const [s, users] = await Promise.all([
+    section === 'users' ? Promise.resolve({}) : commerce.read(section ? projection[section] : 'products categories orders'),
+    !section || section === 'users' ? User.find().sort({ createdAt: -1 }).then(rows => rows.map(publicUser)) : Promise.resolve([]),
+  ]);
+  res.json({ products: (s.products || []).filter(p => !p.deleted), categories: s.categories || [], orders: s.orders || [], users });
+}));
 for (const [plural, singular] of [['products', 'Product'], ['categories', 'Category']]) {
   router.post(`/admin/${plural}`, asyncRoute(async (req, res) => res.status(201).json({ record: await commerce[`save${singular}`](null, req.body) })));
   router.put(`/admin/${plural}/:id`, asyncRoute(async (req, res) => res.json({ record: await commerce[`save${singular}`](schema.id.parse(req.params.id), req.body) })));
