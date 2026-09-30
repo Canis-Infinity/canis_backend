@@ -4,7 +4,7 @@ const { rateLimit } = require('express-rate-limit');
 const { z } = require('zod');
 const { ThriftUser: User, ThriftSession: Session, ThriftImage: Image, ensureThriftIndexes } = require('./models');
 const { asyncRoute, fail } = require('./utils/http');
-const { publicUser } = require('./utils/serializers');
+const { publicUser, withOrderImages } = require('./utils/serializers');
 const { getToken } = require('./utils/cookies');
 const sessions = require('./services/sessions');
 const commerce = require('./services/commerce');
@@ -31,13 +31,13 @@ router.post('/checkout', rateLimit({ windowMs: 60000, limit: 15, message: { mess
   const user = token ? await sessions.authenticate(token) : null;
   res.status(201).json({ order: await commerce.checkout(req.body, user) });
 }));
-router.get('/orders', requireSession, asyncRoute(async (req, res) => { const s = await commerce.read(); res.json({ orders: s.orders.filter(o => o.owner === req.thriftUser.id) }); }));
+router.get('/orders', requireSession, asyncRoute(async (req, res) => { const s = await commerce.read('orders products'); const products = new Map(s.products.map(p => [p.id, p])); res.json({ orders: s.orders.filter(o => o.owner === req.thriftUser.id).map(o => withOrderImages(o, products)) }); }));
 router.get('/order-link/:token', asyncRoute(async (req, res) => {
   if (!/^[a-f0-9]{64}$/.test(req.params.token)) throw fail(404, '訂單不存在');
-  const s = await commerce.read();
+  const s = await commerce.read('orders products');
   const order = s.orders.find(o => o.token === req.params.token);
   if (!order) throw fail(404, '訂單不存在或已刪除');
-  const { number, items, total, status, createdAt } = order;
+  const { number, items, total, status, createdAt } = withOrderImages(order, new Map(s.products.map(p => [p.id, p])));
   res.json({ order: { number, items, total, status, createdAt } });
 }));
 router.use('/admin', requireSession, requireAdmin);

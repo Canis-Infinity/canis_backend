@@ -93,7 +93,8 @@ function reserve(state, items, previous = []) {
     const product = find(state.products, item.product);
     if (product.deleted || !product.active || product.quantity < item.quantity) throw fail(409, `${product.name} 已下架或庫存不足`);
     product.quantity -= item.quantity; touch(product);
-    return { product: product.id, name: product.name, price: previous.find(p => p.product === item.product)?.price ?? product.price, quantity: item.quantity };
+    const original = previous.find(p => p.product === item.product);
+    return { product: product.id, name: product.name, image: original?.image ?? product.images?.[0] ?? null, price: original?.price ?? product.price, quantity: item.quantity };
   });
 }
 function restore(state, items) { for (const item of items) { const p = find(state.products, item.product); p.quantity += item.quantity; touch(p); } }
@@ -105,7 +106,7 @@ async function editOrder(id, body) {
     const wasCancelled = order.status === 'cancelled', isCancelled = input.status === 'cancelled';
     if (!wasCancelled && (itemsChanged || isCancelled)) restore(state, order.items);
     if (!isCancelled && (itemsChanged || wasCancelled)) order.items = reserve(state, input.items, order.items);
-    if (isCancelled && itemsChanged) order.items = input.items.map(item => { const p = find(state.products, item.product); return { ...item, name: p.name, price: order.items.find(i => i.product === item.product)?.price ?? p.price }; });
+    if (isCancelled && itemsChanged) order.items = input.items.map(item => { const p = find(state.products, item.product); const original = order.items.find(i => i.product === item.product); return { ...item, name: p.name, image: original?.image ?? p.images?.[0] ?? null, price: original?.price ?? p.price }; });
     Object.assign(order, { customer: input.customer, note: input.note, status: input.status, total: total(order.items) }); touch(order); return order;
   });
 }

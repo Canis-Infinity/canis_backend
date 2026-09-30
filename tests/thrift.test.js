@@ -23,6 +23,35 @@ describe('thrift standalone MongoDB shop', () => {
   beforeAll(async()=> { mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri(), { dbName: 'thrift_test' }); await ensureThriftIndexes(); app = createApp(); },180000);
   beforeEach(async()=> { await Promise.all([User.deleteMany({}),Session.deleteMany({}),Store.deleteMany({}),Image.deleteMany({})]); admin=await account('admin');member=await account();image=String((await Image.create({ data:png,mime:'image/png',name:'test.png',owner:admin.user._id }))._id); });
   afterAll(async()=> { await mongoose.disconnect();await mongo?.stop(); });
+  it('preserves order image snapshots and resolves legacy thumbnails by product ID after deletion', async () => {
+    const secondImage = String((await Image.create({ data: png, mime: 'image/png', name: 'second.png', owner: admin.user._id }))._id);
+    const first = await addProduct({ name: '同名商品' });
+    const second = await addProduct({ name: '同名商品', images: [secondImage] });
+    const response = await call(member, 'post', '/checkout', checkout([{ product: first.id, quantity: 1 }, { product: second.id, quantity: 1 }]));
+    expect(response.status).toBe(201);
+    const order = response.body.order;
+    expect(order.items.map(i => i.image)).toEqual([image, secondImage]);
+    // Change the first photo after purchase and soft-delete both products.
+    await commerce.mutate(s => {
+      s.products.find(p => p.id === first.id).images = [secondImage];
+      s.products.forEach(p => { p.deleted = true; p.active = false; });
+    });
+    const snapshot = await call(null, 'get', `/order-link/${order.token}`);
+    expect(snapshot.body.order.items.map(i => i.image)).toEqual([image, secondImage]);
+    expect(snapshot.body.order.customer).toBeUndefined();
+    expect(snapshot.body.order.owner).toBeUndefined();
+    expect(snapshot.body.order.token).toBeUndefined();
+    // Simulate an older order without an image snapshot.
+    await commerce.mutate(s => { delete s.orders[0].items[1].image; });
+    const legacy = await call(null, 'get', `/order-link/${order.token}`);
+    expect(legacy.body.order.items.map(i => i.image)).toEqual([image, secondImage]);
+    const own = await call(member, 'get', '/orders');
+    expect(own.body.orders[0].items.map(i => i.image)).toEqual([image, secondImage]);
+    expect((await call(null, 'get', `/images/${image}`)).status).toBe(200);
+    // Historical records without any remaining product data have a safe placeholder.
+    await commerce.mutate(s => { s.products = s.products.filter(p => p.id !== second.id); });
+    expect((await call(null, 'get', `/order-link/${order.token}`)).body.order.items[1].image).toBeNull();
+  });
   it('keeps inactive cart product details available without listing or selling them',async()=>{
     const inactive=await addProduct({name:'收藏割愛',active:false,quantity:3});
     const other=await addProduct({name:'其他商品'});
