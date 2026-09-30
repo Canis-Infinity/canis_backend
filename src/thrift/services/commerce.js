@@ -99,15 +99,13 @@ function reserve(state, items, previous = []) {
 }
 function restore(state, items) { for (const item of items) { const p = find(state.products, item.product); p.quantity += item.quantity; touch(p); } }
 async function editOrder(id, body) {
-  const input = z.object({ customer: schema.customer, items: schema.items, note: z.string().trim().max(2000), status: z.enum(['pending', 'confirmed', 'completed', 'cancelled']), version: z.number().int().min(0) }).strict().parse(body);
+  const input = z.object({ note: z.string().trim().max(2000), status: z.enum(['pending', 'confirmed', 'completed', 'cancelled']), version: z.number().int().min(0) }).strict().parse(body);
   return mutate(state => {
     const order = find(state.orders, id, input.version);
-    const itemsChanged = JSON.stringify(input.items) !== JSON.stringify(order.items.map(i => ({ product: i.product, quantity: i.quantity })));
     const wasCancelled = order.status === 'cancelled', isCancelled = input.status === 'cancelled';
-    if (!wasCancelled && (itemsChanged || isCancelled)) restore(state, order.items);
-    if (!isCancelled && (itemsChanged || wasCancelled)) order.items = reserve(state, input.items, order.items);
-    if (isCancelled && itemsChanged) order.items = input.items.map(item => { const p = find(state.products, item.product); const original = order.items.find(i => i.product === item.product); return { ...item, name: p.name, image: original?.image ?? p.images?.[0] ?? null, price: original?.price ?? p.price }; });
-    Object.assign(order, { customer: input.customer, note: input.note, status: input.status, total: total(order.items) }); touch(order); return order;
+    if (!wasCancelled && isCancelled) restore(state, order.items);
+    if (!isCancelled && wasCancelled) reserve(state, order.items, order.items);
+    Object.assign(order, { note: input.note, status: input.status }); touch(order); return order;
   });
 }
 async function deleteOrder(id, version) {

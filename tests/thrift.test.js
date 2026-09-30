@@ -132,18 +132,30 @@ describe('thrift standalone MongoDB shop', () => {
     expect((await call(null,'post','/checkout',checkout([{product:a.id,quantity:1},{product:b.id,quantity:1}]))).status).toBe(409);
     const state=await commerce.read();expect(state.products.find(p=>p.id===a.id).quantity).toBe(3);expect(state.orders).toHaveLength(0);
   });
-  it('changes items, cancels exactly once, restores and deletes with private lookup',async()=>{
-    const a=await addProduct({name:'A',quantity:3}),b=await addProduct({name:'B',quantity:2});
-    const order=(await call(member,'post','/checkout',checkout([{product:a.id,quantity:1}]))).body.order;
-    expect(order.number).toMatch(/^T\d{8}-[A-F0-9]+$/);
-    const edit={customer,items:[{product:b.id,quantity:2}],note:'改單',status:'confirmed',version:0};
-    expect((await call(admin,'put',`/admin/orders/${order.id}`,edit)).status).toBe(200);
-    let state=await commerce.read();expect(state.products.find(p=>p.id===a.id).quantity).toBe(3);expect(state.products.find(p=>p.id===b.id).quantity).toBe(0);
-    expect((await call(admin,'put',`/admin/orders/${order.id}`,{...edit,items:[{product:a.id,quantity:99}],version:1})).status).toBe(409);
-    const cancel={...edit,status:'cancelled',version:1};const results=await Promise.all([call(admin,'put',`/admin/orders/${order.id}`,cancel),call(admin,'put',`/admin/orders/${order.id}`,cancel)]);expect(results.map(r=>r.status).sort()).toEqual([200,409]);
-    state=await commerce.read();expect(state.products.find(p=>p.id===b.id).quantity).toBe(2);
-    const lookup=await call(null,'get',`/order-link/${order.token}`);expect(lookup.status).toBe(200);expect(lookup.body.order.customer).toBeUndefined();expect(lookup.body.order.status).toBe('cancelled');
-    expect((await call(admin,'delete',`/admin/orders/${order.id}`,{version:2})).status).toBe(200);expect((await call(null,'get',`/order-link/${order.token}`)).status).toBe(404);
+  it('only edits status and notes while preserving order details and atomic stock transitions', async () => {
+    const p = await addProduct({ quantity: 3 });
+    const order = (await call(member, 'post', '/checkout', checkout([{ product: p.id, quantity: 1 }]))).body.order;
+    const edit = { note: '備註', status: 'confirmed', version: 0 };
+    for (const extra of [{ customer: { ...customer, name: '更名' } }, { items: [{ product: p.id, quantity: 2 }] }, { total: 0 }]) {
+      expect((await call(admin, 'put', `/admin/orders/${order.id}`, { ...edit, ...extra })).status).toBe(422);
+    }
+    const updated = await call(admin, 'put', `/admin/orders/${order.id}`, edit);
+    expect(updated.status).toBe(200);
+    expect(updated.body.order).toMatchObject({ customer: order.customer, items: order.items, total: order.total });
+    const cancel = { ...edit, status: 'cancelled', version: 1 };
+    const results = await Promise.all([call(admin, 'put', `/admin/orders/${order.id}`, cancel), call(admin, 'put', `/admin/orders/${order.id}`, cancel)]);
+    expect(results.map(r => r.status).sort()).toEqual([200, 409]);
+    expect((await commerce.read()).products[0].quantity).toBe(3);
+    await commerce.mutate(s => { s.products[0].quantity = 0; });
+    expect((await call(admin, 'put', `/admin/orders/${order.id}`, { ...edit, version: 2 })).status).toBe(409);
+    expect((await commerce.read()).orders[0].status).toBe('cancelled');
+    await commerce.mutate(s => { s.products[0].quantity = 3; s.products[0].name = '新名稱'; });
+    const restored = await call(admin, 'put', `/admin/orders/${order.id}`, { ...edit, version: 2 });
+    expect(restored.status).toBe(200);
+    expect(restored.body.order.items).toEqual(order.items);
+    expect((await commerce.read()).products[0].quantity).toBe(2);
+    await call(admin, 'put', `/admin/orders/${order.id}`, { ...cancel, version: 3 });
+    expect((await call(admin, 'delete', `/admin/orders/${order.id}`, { version: 4 })).status).toBe(200);
   });
   it('restricts order visibility and derives authoritative prices',async()=>{
     const p=await addProduct();await call(member,'post','/checkout',checkout([{product:p.id,quantity:2}]));
