@@ -106,6 +106,21 @@ describe('thrift standalone MongoDB shop', () => {
     expect((await call(member,'get','/admin/data')).status).toBe(403);
     expect((await call(null,'post','/auth/register',{...body,role:'admin'})).status).toBe(422);
   });
+  it('accepts Threads for registration and guest orders and preserves the contact account', async () => {
+    const threads = { platform: 'Threads', account: '@thrift-test' };
+    const registration = await call(null, 'post', '/auth/register', { name: '新會員', email: 'threads@example.test', phone: '0912345678', contact: threads, password: 'test-password-2026' });
+    expect(registration.status).toBe(201);
+    const login = await call(null, 'post', '/auth/login', { email: 'threads@example.test', password: 'test-password-2026' });
+    expect(login.status).toBe(200);
+    expect(login.body.user.contact).toEqual(threads);
+    const product = await addProduct();
+    const response = await call(null, 'post', '/checkout', checkout([{ product: product.id, quantity: 1 }], { customer: { name: '訪客', contact: threads } }));
+    expect(response.status).toBe(201);
+    const managed = await call(admin, 'get', '/admin/data?section=orders');
+    expect(managed.body.orders[0].customer.contact).toEqual(threads);
+    const invalid = await call(null, 'post', '/checkout', checkout([{ product: product.id, quantity: 1 }], { customer: { name: '訪客', contact: { ...threads, platform: 'unknown' } } }));
+    expect(invalid.status).toBe(422);
+  });
   it('suspends and deletes accounts with session invalidation, protecting administrators',async()=>{
     expect((await call(admin,'patch',`/admin/users/${member.user.id}`,{status:'suspended',version:0})).status).toBe(200);
     expect((await call(member,'get','/auth/me')).status).toBe(401);

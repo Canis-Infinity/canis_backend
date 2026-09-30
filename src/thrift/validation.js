@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const name = z.string().trim().min(1, '此欄位為必填').max(80, '最多 80 字');
 const password = z.string().min(12, '密碼至少 12 個字元').max(72, '密碼最多 72 個字元').refine(v => Buffer.byteLength(v) <= 72, '密碼最多 72 bytes');
-const contact = z.object({ platform: z.enum(['IG', 'LINE', 'facebook', 'Discord']), account: z.string().trim().min(1, '請輸入聯繫帳號').max(200) }).strict();
+const contact = z.object({ platform: z.enum(['IG', 'LINE', 'facebook', 'Discord', 'Threads']), account: z.string().trim().min(1, '請輸入聯繫帳號').max(200) }).strict();
 const id = z.string().regex(/^[a-f0-9]{24}$/i, '無效的紀錄編號');
 const customer = z.object({ name, contact }).strict();
 const register = z.object({ name, email: z.email('請輸入有效信箱').trim().toLowerCase(), phone: z.string().trim().regex(/^\+?[0-9 ()-]{8,20}$/, '請輸入有效手機號碼'), contact, password }).strict();
