@@ -47,6 +47,8 @@ describe('thrift standalone MongoDB shop', () => {
     expect(legacy.body.order.items.map(i => i.image)).toEqual([image, secondImage]);
     const own = await call(member, 'get', '/orders');
     expect(own.body.orders[0].items.map(i => i.image)).toEqual([image, secondImage]);
+    const managed = await call(admin, 'get', '/admin/data?section=orders');
+    expect(managed.body.orders[0].items.map(i => i.image)).toEqual([image, secondImage]);
     expect((await call(null, 'get', `/images/${image}`)).status).toBe(200);
     // Historical records without any remaining product data have a safe placeholder.
     await commerce.mutate(s => { s.products = s.products.filter(p => p.id !== second.id); });

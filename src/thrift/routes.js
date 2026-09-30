@@ -49,7 +49,8 @@ router.get('/admin/data', asyncRoute(async (req, res) => {
     section === 'users' ? Promise.resolve({}) : commerce.read(section ? projection[section] : 'products categories orders'),
     !section || section === 'users' ? User.find().sort({ createdAt: -1 }).then(rows => rows.map(publicUser)) : Promise.resolve([]),
   ]);
-  res.json({ products: (s.products || []).filter(p => !p.deleted), categories: s.categories || [], orders: s.orders || [], users });
+  const products = new Map((s.products || []).map(p => [p.id, p]));
+  res.json({ products: (s.products || []).filter(p => !p.deleted), categories: s.categories || [], orders: (s.orders || []).map(o => withOrderImages(o, products)), users });
 }));
 for (const [plural, singular] of [['products', 'Product'], ['categories', 'Category']]) {
   router.post(`/admin/${plural}`, asyncRoute(async (req, res) => res.status(201).json({ record: await commerce[`save${singular}`](null, req.body) })));
