@@ -3,7 +3,7 @@ const CanisWorld = require("../models").canisWorld;
 const { requireNormalAuth } = require("../src/middlewares/auth");
 const { uploadCanisWorldMedia } = require("../src/middlewares/upload");
 
-const MAX_FEATURED_ENTRIES = 2;
+const MAX_FEATURED_ENTRIES = 5;
 
 function hasReachedFeaturedLimit(document, excludedEntryId) {
   return document.entries.filter(
