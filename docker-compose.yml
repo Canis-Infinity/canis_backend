@@ -1,12 +1,16 @@
 services:
   backend:
-    image: node:24-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: canis-backend:local
     container_name: backend_canis_world
     working_dir: /app
     env_file:
       - ./.env
     environment:
       PORT: 7344
+      SELF_CHROMIUM_PATH: /usr/bin/chromium
       MONGODB_CONNECT: ${MONGODB_CONNECT:-mongodb://127.0.0.1:27017/canis_world}
     extra_hosts:
       - "host.docker.internal:host-gateway"

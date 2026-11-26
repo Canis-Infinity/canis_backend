@@ -93,6 +93,27 @@ describe('Self private journal', () => {
     await mongoose.disconnect();
     await mongo?.stop();
   });
+  it.skipIf(!process.env.SELF_CHROMIUM_PATH)('renders a PDF with owned images and rejects other users images', async () => {
+    const image = await Image.create({owner:owner.user._id,mime:'image/png',name:'test.png',data:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6NmcAAAAASUVORK5CYII=','base64')});
+    const input = {theme:'light',css:'@page{size:A4;margin:15mm}',html:`<h1>回診摘要</h1><img src="https://self-pdf.invalid/api/self/images/${image._id}">`};
+    const result = await call(owner,'post','/report-pdf',input);
+    expect(result.status).toBe(200);
+    expect(result.headers['content-type']).toContain('application/pdf');
+    expect(result.body.subarray(0,4).toString()).toBe('%PDF');
+    expect((await call(other,'post','/report-pdf',input)).status).toBeGreaterThanOrEqual(400);
+  }, 60000);
+  it('protects PDF export and validates the print snapshot', async () => {
+    expect((await call(null, 'post', '/report-pdf', {})).status).toBe(401);
+    expect(
+      (
+        await call(owner, 'post', '/report-pdf', {
+          html: '',
+          css: '',
+          theme: 'dark',
+        })
+      ).status,
+    ).toBe(422);
+  });
   it('requires login, supports login/logout and has no public registration', async () => {
     expect((await call(null, 'get', '/entries')).status).toBe(401);
     expect(

@@ -1,0 +1,4 @@
+# Only the image recipe is needed; application files are mounted at runtime.
+**
+!Dockerfile
+!.dockerignore

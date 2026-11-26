@@ -18,3 +18,9 @@
 Docker：`docker exec -it backend_canis_world npm run create-self-user`。
 
 測試：`node node_modules/vitest/vitest.mjs run tests/self.test.js`，使用 MongoMemoryServer，不存取正式資料。
+
+## PDF 列印引擎
+
+`POST /api/self/report-pdf` 接收登入使用者的報表 HTML、CSS 與主題（總量最多 2 MB），以 Chromium print media 輸出 PDF。禁用 JavaScript 與所有外部網路，只透過資料庫讀取本人附件。每分鐘最多 5 次、最多兩個並行工作；結束後關閉瀏覽器，不保存報表。
+
+部署：`docker compose up -d --build --force-recreate`。Dockerfile 安裝 Chromium 與 Noto CJK 字型；本機非 Docker 執行需以 `SELF_CHROMIUM_PATH` 指定 Chromium 路徑。

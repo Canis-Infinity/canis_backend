@@ -121,6 +121,23 @@ router.use(
 router.get('/auth/me', (req, res) =>
   res.json({ user: { name: req.selfUser.name, email: req.selfUser.email } }),
 );
+router.post(
+  '/report-pdf',
+  rateLimit({
+    windowMs: 60000,
+    limit: 5,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { message: '匯出次數過多，請稍後再試' },
+  }),
+  wrap(async (req, res) => {
+    const { renderReport } = require('./report-pdf');
+    const pdf = await renderReport(req.body, (id) =>
+      Image.findOne({ _id: id, owner: req.selfUser._id }).select('+data'),
+    );
+    res.type('application/pdf').send(pdf);
+  }),
+);
 router.get(
   '/entries',
   wrap(async (req, res) => {
