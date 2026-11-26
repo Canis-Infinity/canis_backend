@@ -10,6 +10,7 @@
     "create-admin": "node scripts/create-admin.js",
     "create-debt-admin": "node scripts/create-debt-admin.js",
     "create-thrift-admin": "node scripts/create-thrift-admin.js",
+    "create-self-user": "node scripts/create-self-user.js",
     "test": "vitest run"
   },
   "engines": {
