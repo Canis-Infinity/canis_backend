@@ -138,6 +138,16 @@ module.exports = async function list(req, serialize) {
                 },
               },
             ],
+            appetite: [
+              { $match: { kind: 'diet' } },
+              {
+                $group: {
+                  _id: null,
+                  count: { $sum: 1 },
+                  average: { $avg: '$data.appetite' },
+                },
+              },
+            ],
           },
         },
       ]),
@@ -160,6 +170,8 @@ module.exports = async function list(req, serialize) {
       moodAverage: result.mood[0]?.average ?? null,
       sleepCount: result.sleep[0]?.count || 0,
       sleepAverage: result.sleep[0]?.average ?? null,
+      appetiteCount: result.appetite[0]?.count || 0,
+      appetiteAverage: result.appetite[0]?.average ?? null,
       moods: moods.map(serialize),
       nextVisit: nextVisit ? serialize(nextVisit) : null,
     };

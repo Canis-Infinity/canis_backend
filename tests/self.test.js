@@ -220,6 +220,35 @@ describe('Self private journal', () => {
       (await call(owner, 'get', '/entries?stats=1&timezone=invalid')).status,
     ).toBe(422);
   });
+  it('aggregates appetite over the full filtered range with ownership isolation', async () => {
+    const input = {
+      ...samples[0],
+      kind: 'diet',
+      title: '飲食紀錄',
+      note: '食慾統計',
+      data: { meal: 'lunch', food: '午餐', appetite: 2 },
+    };
+    await Entry.insertMany(
+      [2, 8, 10].map((appetite) => ({
+        ...input,
+        owner: owner.user._id,
+        data: { ...input.data, appetite },
+      })),
+    );
+    await Entry.create({ ...input, owner: other.user._id });
+    const result = await call(
+      owner,
+      'get',
+      '/entries?kind=journal&stats=1&limit=1&q=' +
+        encodeURIComponent('食慾統計'),
+    );
+    expect(result.body.entries).toHaveLength(1);
+    expect(result.body.stats.appetiteCount).toBe(3);
+    expect(result.body.stats.appetiteAverage).toBeCloseTo(20 / 3);
+    const empty = await call(owner, 'get', '/entries?stats=1&q=missing');
+    expect(empty.body.stats.appetiteCount).toBe(0);
+    expect(empty.body.stats.appetiteAverage).toBeNull();
+  });
   it('migrates legacy moods once and preserves other data and revision safety', async () => {
     const migrate = require('../src/self/migrate-moods');
     await Entry.insertMany(

@@ -30,3 +30,5 @@ Docker：`docker exec -it backend_canis_world npm run create-self-user`。
 新心情資料使用 `data.scale=10`，`score` 必須是 1–10 整數。舊的無 scale 資料按五級解讀；執行 `node scripts/migrate-self-moods.js`（Docker：`docker exec backend_canis_world node scripts/migrate-self-moods.js`）將 1/2/3/4/5 轉為 1/3/6/8/10，保留 `legacyScore` 並遞增版本防止舊編輯覆蓋，可安全重跑。日期、文字及附件不變。
 
 飲食使用 `meal`（breakfast/lunch/dinner/snack/drink）、`food`、`appetite`（1–10 整數）；飲料也是餐別，新表單使用 food 記錄內容；舊 drinks 欄位相容保留，支援備註和圖片。
+
+stats=1 同時回傳 appetiteCount 與 appetiteAverage，依符合篩選的 diet 紀錄計算，無飲食紀錄時分別為 0 與 null。
