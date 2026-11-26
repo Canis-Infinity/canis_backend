@@ -14,10 +14,10 @@ const entry = z.discriminatedUnion('kind', [
     kind: z.literal('diet'),
     data: z
       .object({
-        meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack'], {
+        meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'drink'], {
           error: '請選擇餐別',
         }),
-        food: z.string().trim().max(3000).default(''),
+        food: z.string().trim().max(4100).default(''),
         drinks: z.string().trim().max(1000).default(''),
         appetite: z
           .number({ error: '請填寫食慾分數' })
@@ -26,7 +26,7 @@ const entry = z.discriminatedUnion('kind', [
           .max(10, '食慾最高 10 分'),
       })
       .refine((data) => !!(data.food || data.drinks), {
-        message: '請填寫吃了什麼或飲料',
+        message: '請填寫飲食內容',
       }),
   }),
 

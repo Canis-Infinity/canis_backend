@@ -284,6 +284,15 @@ describe('Self private journal', () => {
           })
         ).status,
       ).toBe(201);
+    const drink = await call(owner, 'post', '/entries', {
+      ...diet,
+      data: { meal: 'drink', food: '無糖茶', appetite: 5 },
+    });
+    expect(drink.status).toBe(201);
+    expect(drink.body.entry.data.meal).toBe('drink');
+    await call(owner, 'delete', `/entries/${drink.body.entry.id}`, {
+      version: 0,
+    });
     const created = await call(owner, 'post', '/entries', diet);
     expect(created.status).toBe(201);
     const id = created.body.entry.id;
