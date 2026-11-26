@@ -93,15 +93,33 @@ describe('Self private journal', () => {
     await mongoose.disconnect();
     await mongo?.stop();
   });
-  it.skipIf(!process.env.SELF_CHROMIUM_PATH)('renders a PDF with owned images and rejects other users images', async () => {
-    const image = await Image.create({owner:owner.user._id,mime:'image/png',name:'test.png',data:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6NmcAAAAASUVORK5CYII=','base64')});
-    const input = {theme:'light',css:'@page{size:A4;margin:15mm}',html:`<h1>回診摘要</h1><img src="https://self-pdf.invalid/api/self/images/${image._id}">`};
-    const result = await call(owner,'post','/report-pdf',input);
-    expect(result.status).toBe(200);
-    expect(result.headers['content-type']).toContain('application/pdf');
-    expect(result.body.subarray(0,4).toString()).toBe('%PDF');
-    expect((await call(other,'post','/report-pdf',input)).status).toBeGreaterThanOrEqual(400);
-  }, 60000);
+  it.skipIf(!process.env.SELF_CHROMIUM_PATH)(
+    'renders a PDF with owned images and rejects other users images',
+    async () => {
+      const image = await Image.create({
+        owner: owner.user._id,
+        mime: 'image/png',
+        name: 'test.png',
+        data: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6NmcAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      });
+      const input = {
+        theme: 'light',
+        css: '@page{size:A4;margin:15mm}',
+        html: `<h1>回診摘要</h1><img src="https://self-pdf.invalid/api/self/images/${image._id}">`,
+      };
+      const result = await call(owner, 'post', '/report-pdf', input);
+      expect(result.status).toBe(200);
+      expect(result.headers['content-type']).toContain('application/pdf');
+      expect(result.body.subarray(0, 4).toString()).toBe('%PDF');
+      expect(
+        (await call(other, 'post', '/report-pdf', input)).status,
+      ).toBeGreaterThanOrEqual(400);
+    },
+    60000,
+  );
   it('protects PDF export and validates the print snapshot', async () => {
     expect((await call(null, 'post', '/report-pdf', {})).status).toBe(401);
     expect(
@@ -159,6 +177,141 @@ describe('Self private journal', () => {
       expect(remaining).toBeGreaterThan(7 * 86400000 - 10000);
       expect(remaining).toBeLessThanOrEqual(7 * 86400000);
     }
+  });
+  it('paginates all matches and keeps aggregate statistics independent of the page', async () => {
+    await Entry.insertMany(
+      Array.from({ length: 13 }, (_, i) => ({
+        ...samples[0],
+        owner: owner.user._id,
+        note: '分頁[測試]',
+        data: { ...samples[0].data, scale: 10, score: (i % 10) + 1 },
+      })),
+    );
+    await Entry.create({ ...samples[0], owner: other.user._id });
+    const url =
+      '/entries?kind=journal&limit=6&stats=1&q=' +
+      encodeURIComponent('分頁[測試]');
+    const results = await Promise.all(
+      [1, 2, 3].map((page) => call(owner, 'get', `${url}&page=${page}`)),
+    );
+    expect(results.map((result) => result.body.entries.length)).toEqual([
+      6, 6, 1,
+    ]);
+    expect(
+      new Set(
+        results.flatMap((result) =>
+          result.body.entries.map((entry) => entry.id),
+        ),
+      ).size,
+    ).toBe(13);
+    for (const result of results) {
+      expect(result.status).toBe(200);
+      expect(result.body.total).toBe(13);
+      expect(result.body.pages).toBe(3);
+      expect(result.body.stats.moodCount).toBe(13);
+      expect(result.body.stats.days).toBe(1);
+      expect(result.body.stats.moodAverage).toBeCloseTo(61 / 13);
+    }
+    const last = results[2].body.entries[0];
+    await call(owner, 'delete', `/entries/${last.id}`, { version: 0 });
+    expect((await call(owner, 'get', `${url}&page=3`)).body.page).toBe(2);
+    expect((await call(owner, 'get', '/entries?limit=101')).status).toBe(422);
+    expect(
+      (await call(owner, 'get', '/entries?stats=1&timezone=invalid')).status,
+    ).toBe(422);
+  });
+  it('migrates legacy moods once and preserves other data and revision safety', async () => {
+    const migrate = require('../src/self/migrate-moods');
+    await Entry.insertMany(
+      [1, 2, 3, 4, 5].map((score) => ({
+        ...samples[0],
+        owner: owner.user._id,
+        data: { ...samples[0].data, score },
+      })),
+    );
+    const modern = await Entry.create({
+      ...samples[0],
+      owner: owner.user._id,
+      data: { ...samples[0].data, score: 4, scale: 10 },
+    });
+    expect((await migrate()).modifiedCount).toBe(5);
+    expect((await migrate()).modifiedCount).toBe(0);
+    const converted = await Entry.find({
+      'data.legacyScore': { $exists: true },
+    })
+      .sort({ 'data.legacyScore': 1 })
+      .lean();
+    expect(converted.map((row) => row.data.score)).toEqual([1, 3, 6, 8, 10]);
+    for (const row of converted) {
+      expect(row.note).toBe(samples[0].note);
+      expect(row.data.trigger).toBe(samples[0].data.trigger);
+      expect(row.occurredAt.toISOString()).toBe(new Date(now).toISOString());
+      expect(row.__v).toBe(1);
+    }
+    expect((await Entry.findById(modern._id)).data.score).toBe(4);
+  });
+  it('validates integer mood and appetite scores and supports diet CRUD', async () => {
+    const diet = {
+      ...samples[0],
+      kind: 'diet',
+      title: '飲食紀錄',
+      data: { meal: 'lunch', food: '飯', drinks: '茶', appetite: 6 },
+    };
+    for (const score of [0, 11, 1.3, 1.5]) {
+      expect(
+        (
+          await call(owner, 'post', '/entries', {
+            ...samples[0],
+            data: { ...samples[0].data, scale: 10, score },
+          })
+        ).status,
+      ).toBe(422);
+      expect(
+        (
+          await call(owner, 'post', '/entries', {
+            ...diet,
+            data: { ...diet.data, appetite: score },
+          })
+        ).status,
+      ).toBe(422);
+    }
+    for (const score of [1, 10])
+      expect(
+        (
+          await call(owner, 'post', '/entries', {
+            ...samples[0],
+            data: { ...samples[0].data, scale: 10, score },
+          })
+        ).status,
+      ).toBe(201);
+    const created = await call(owner, 'post', '/entries', diet);
+    expect(created.status).toBe(201);
+    const id = created.body.entry.id;
+    expect(
+      (await call(other, 'put', `/entries/${id}`, { ...diet, version: 0 }))
+        .status,
+    ).toBe(409);
+    expect(
+      (
+        await call(
+          owner,
+          'get',
+          '/entries?kind=diet&q=' + encodeURIComponent('茶'),
+        )
+      ).body.total,
+    ).toBe(1);
+    expect(
+      (
+        await call(owner, 'put', `/entries/${id}`, {
+          ...diet,
+          data: { ...diet.data, appetite: 10 },
+          version: 0,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await call(owner, 'delete', `/entries/${id}`, { version: 1 })).status,
+    ).toBe(200);
   });
   it('validates the new medication and appointment fields with readable messages', async () => {
     const missingMood = await call(owner, 'post', '/entries', {

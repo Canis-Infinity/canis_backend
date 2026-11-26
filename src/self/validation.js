@@ -11,16 +11,43 @@ const base = {
 const entry = z.discriminatedUnion('kind', [
   z.object({
     ...base,
+    kind: z.literal('diet'),
+    data: z
+      .object({
+        meal: z.enum(['breakfast', 'lunch', 'dinner', 'snack'], {
+          error: '請選擇餐別',
+        }),
+        food: z.string().trim().max(3000).default(''),
+        drinks: z.string().trim().max(1000).default(''),
+        appetite: z
+          .number({ error: '請填寫食慾分數' })
+          .int('食慾必須是整數')
+          .min(1, '食慾最低 1 分')
+          .max(10, '食慾最高 10 分'),
+      })
+      .refine((data) => !!(data.food || data.drinks), {
+        message: '請填寫吃了什麼或飲料',
+      }),
+  }),
+
+  z.object({
+    ...base,
     kind: z.literal('mood'),
-    data: z.object({
-      score: z
-        .number({ error: '請選擇此刻心情' })
-        .int()
-        .min(1, '請選擇此刻心情')
-        .max(5),
-      emotions: z.string().max(200),
-      trigger: z.string().max(1000),
-    }),
+    data: z
+      .object({
+        score: z
+          .number({ error: '請選擇此刻心情' })
+          .int('心情必須是整數')
+          .min(1, '心情最低 1 分')
+          .max(10, '心情最高 10 分'),
+        scale: z.literal(10).optional(),
+        legacyScore: z.number().int().min(1).max(5).optional(),
+        emotions: z.string().max(200),
+        trigger: z.string().max(1000),
+      })
+      .refine((data) => data.scale === 10 || data.score <= 5, {
+        message: '請使用十分制記錄心情',
+      }),
   }),
   z.object({
     ...base,

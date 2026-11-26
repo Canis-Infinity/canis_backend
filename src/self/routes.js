@@ -141,44 +141,7 @@ router.post(
 router.get(
   '/entries',
   wrap(async (req, res) => {
-    const query = z
-      .object({
-        from: z.iso.datetime({ offset: true }).optional(),
-        to: z.iso.datetime({ offset: true }).optional(),
-        kind: z
-          .enum([
-            'mood',
-            'sleep',
-            'body',
-            'medication',
-            'reflection',
-            'appointment',
-          ])
-          .optional(),
-        page: z.coerce.number().int().min(1).max(100000).default(1),
-      })
-      .parse(req.query);
-    const filter = { owner: req.selfUser._id };
-    if (query.kind) filter.kind = query.kind;
-    if (query.from || query.to)
-      filter.occurredAt = {
-        ...(query.from && { $gte: new Date(query.from) }),
-        ...(query.to && { $lte: new Date(query.to) }),
-      };
-    const [entries, total] = await Promise.all([
-      Entry.find(filter)
-        .sort({ occurredAt: -1, _id: -1 })
-        .skip((query.page - 1) * 100)
-        .limit(100)
-        .lean(),
-      Entry.countDocuments(filter),
-    ]);
-    res.json({
-      entries: entries.map(serialize),
-      total,
-      page: query.page,
-      pages: Math.ceil(total / 100),
-    });
+    res.json(await require('./list')(req, serialize));
   }),
 );
 async function validateEntry(req) {
