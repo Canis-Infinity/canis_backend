@@ -74,7 +74,7 @@ module.exports = async function list(req, serialize) {
     .lean();
   let stats;
   if (query.stats) {
-    const [aggregates, moods, nextVisit] = await Promise.all([
+    const [aggregates, nextVisit] = await Promise.all([
       Entry.aggregate([
         { $match: filter },
         {
@@ -151,10 +151,6 @@ module.exports = async function list(req, serialize) {
           },
         },
       ]),
-      Entry.find({ $and: [filter, { kind: 'mood' }] })
-        .sort({ occurredAt: -1, _id: -1 })
-        .limit(14)
-        .lean(),
       Entry.findOne({
         owner: req.selfUser._id,
         kind: 'appointment',
@@ -172,7 +168,6 @@ module.exports = async function list(req, serialize) {
       sleepAverage: result.sleep[0]?.average ?? null,
       appetiteCount: result.appetite[0]?.count || 0,
       appetiteAverage: result.appetite[0]?.average ?? null,
-      moods: moods.map(serialize),
       nextVisit: nextVisit ? serialize(nextVisit) : null,
     };
   }

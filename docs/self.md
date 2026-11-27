@@ -32,3 +32,9 @@ Docker：`docker exec -it backend_canis_world npm run create-self-user`。
 飲食使用 `meal`（breakfast/lunch/dinner/snack/drink）、`food`、`appetite`（1–10 整數）；飲料也是餐別，新表單使用 food 記錄內容；舊 drinks 欄位相容保留，支援備註和圖片。
 
 stats=1 同時回傳 appetiteCount 與 appetiteAverage，依符合篩選的 diet 紀錄計算，無飲食紀錄時分別為 0 與 null。
+
+## 趨勢與圖片版本
+
+GET /api/self/mood-trend 接受 from、to、period=day|week|month、timezone，最多 32 天；僅聚合目前帳號，day 按小時，其餘按日期輸出 key/score/count。
+GET /api/self/images/:id?size=thumbnail|preview|original，縮圖 480px、預覽 1600px，WebP；不傳 size 維持原圖。所有版本均驗證 session 與 owner、no-store。舊圖按需產生衍生版本，不改寫原圖。
+情緒新增可選 selfHarmUrge、suicideUrge（0–10 整數），selfHarmed、suicideAttempted（boolean）。缺少欄位代表未填寫，不能視為 0 或 false。

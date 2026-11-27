@@ -45,6 +45,8 @@ const definitions = {
       {
         owner: Schema.Types.ObjectId,
         data: { type: Buffer, select: false },
+        thumbnail: { type: Buffer, select: false },
+        preview: { type: Buffer, select: false },
         mime: String,
         name: String,
       },

@@ -41,6 +41,10 @@ const entry = z.discriminatedUnion('kind', [
           .min(1, '心情最低 1 分')
           .max(10, '心情最高 10 分'),
         scale: z.literal(10).optional(),
+        selfHarmUrge: z.number().int().min(0).max(10).optional(),
+        suicideUrge: z.number().int().min(0).max(10).optional(),
+        selfHarmed: z.boolean().optional(),
+        suicideAttempted: z.boolean().optional(),
         legacyScore: z.number().int().min(1).max(5).optional(),
         emotions: z.string().max(200),
         trigger: z.string().max(1000),

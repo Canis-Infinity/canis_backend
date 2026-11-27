@@ -2,6 +2,18 @@ const router = require('express').Router();
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+const sharp = require('sharp');
+const resizeImage = (bytes, size) =>
+  sharp(bytes, { limitInputPixels: 60000000 })
+    .rotate()
+    .resize({
+      width: size,
+      height: size,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 80 })
+    .toBuffer();
 const { rateLimit } = require('express-rate-limit');
 const { z } = require('zod');
 const {
@@ -195,6 +207,10 @@ router.delete(
     res.json({ ok: true });
   }),
 );
+router.get(
+  '/mood-trend',
+  wrap(async (req, res) => res.json(await require('./trend')(req))),
+);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 0 },
@@ -228,7 +244,18 @@ router.post(
       mime = 'image/webp';
     if (!mime || mime !== file.mimetype)
       throw fail(422, '僅接受 JPEG、PNG、WebP 圖片');
+    let thumbnail, preview;
+    try {
+      [thumbnail, preview] = await Promise.all([
+        resizeImage(bytes, 480),
+        resizeImage(bytes, 1600),
+      ]);
+    } catch {
+      throw fail(422, '無法讀取圖片，請選擇有效的 JPEG、PNG 或 WebP');
+    }
     const image = await Image.create({
+      thumbnail,
+      preview,
       owner: req.selfUser._id,
       data: bytes,
       mime,
@@ -240,15 +267,34 @@ router.post(
 router.get(
   '/images/:id',
   wrap(async (req, res) => {
-    const image = await Image.findOne({
+    const variant = z
+      .enum(['thumbnail', 'preview', 'original'])
+      .default('original')
+      .parse(req.query.size);
+    const filter = {
       _id: schema.id.parse(req.params.id),
       owner: req.selfUser._id,
-    }).select('+data');
+    };
+    const field = variant === 'original' ? 'data' : variant;
+    const image = await Image.findOne(filter).select(`+${field}`);
     if (!image) throw fail(404, '圖片不存在');
+    let bytes = image[field];
+    if (!bytes && variant !== 'original') {
+      const original = await Image.findOne(filter).select('+data');
+      try {
+        bytes = await resizeImage(
+          original.data,
+          variant === 'thumbnail' ? 480 : 1600,
+        );
+      } catch {
+        throw fail(422, '無法讀取圖片');
+      }
+      await Image.updateOne(filter, { $set: { [field]: bytes } });
+    }
     res
       .set('X-Content-Type-Options', 'nosniff')
-      .type(image.mime)
-      .send(image.data);
+      .type(variant === 'original' ? image.mime : 'image/webp')
+      .send(bytes);
   }),
 );
 router.use((error, req, res, next) => {

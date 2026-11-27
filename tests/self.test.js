@@ -484,11 +484,104 @@ describe('Self private journal', () => {
         .total,
     ).toBe(0);
   });
+  it('validates optional 0–10 risk scores and preserves unrecorded legacy values', async () => {
+    const data = {
+      score: 5,
+      scale: 10,
+      emotions: '',
+      trigger: '',
+      selfHarmUrge: 0,
+      suicideUrge: 10,
+      selfHarmed: false,
+      suicideAttempted: true,
+    };
+    const created = await call(owner, 'post', '/entries', {
+      ...samples[0],
+      data,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.entry.data).toMatchObject(data);
+    for (const value of [-1, 11, 1.5]) {
+      expect(
+        (
+          await call(owner, 'post', '/entries', {
+            ...samples[0],
+            data: { ...data, selfHarmUrge: value },
+          })
+        ).status,
+      ).toBe(422);
+      expect(
+        (
+          await call(owner, 'post', '/entries', {
+            ...samples[0],
+            data: { ...data, suicideUrge: value },
+          })
+        ).status,
+      ).toBe(422);
+    }
+    expect(
+      (
+        await call(owner, 'post', '/entries', {
+          ...samples[0],
+          data: { ...data, selfHarmed: 'false' },
+        })
+      ).status,
+    ).toBe(422);
+    const old = await call(owner, 'post', '/entries', samples[0]);
+    expect(old.body.entry.data).not.toHaveProperty('selfHarmUrge');
+    expect(old.body.entry.data).not.toHaveProperty('suicideAttempted');
+  });
+  it('aggregates complete mood trends with local timezone buckets and owner isolation', async () => {
+    const rows = Array.from({ length: 20 }, () => ({
+      ...samples[0],
+      owner: owner.user._id,
+      occurredAt: new Date('2026-11-26T17:30:00Z'),
+      data: { score: 4, scale: 10 },
+    }));
+    rows.push({
+      ...rows[0],
+      owner: other.user._id,
+      data: { score: 10, scale: 10 },
+    });
+    rows.push({
+      ...rows[0],
+      occurredAt: new Date('2026-11-26T15:30:00Z'),
+      data: { score: 2, scale: 10 },
+    });
+    await Entry.insertMany(rows);
+    const qs =
+      'from=2026-11-26T00:00:00Z&to=2026-11-27T23:59:59Z&timezone=Asia%2FTaipei';
+    const day = await call(owner, 'get', `/mood-trend?${qs}&period=day`);
+    expect(day.status).toBe(200);
+    expect(day.body.points).toEqual([
+      { key: '2026-11-26T23', score: 2, count: 1 },
+      { key: '2026-11-27T01', score: 4, count: 20 },
+    ]);
+    for (const period of ['week', 'month']) {
+      const response = await call(
+        owner,
+        'get',
+        `/mood-trend?${qs}&period=${period}`,
+      );
+      expect(response.body.points).toEqual([
+        { key: '2026-11-26', score: 2, count: 1 },
+        { key: '2026-11-27', score: 4, count: 20 },
+      ]);
+    }
+    expect(
+      (await call(null, 'get', `/mood-trend?${qs}&period=day`)).status,
+    ).toBe(401);
+    expect(
+      (await call(owner, 'get', `/mood-trend?${qs}&period=year`)).status,
+    ).toBe(422);
+  });
   it('allows private image attachments and rejects SVG, spoofing and other users images', async () => {
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6OHsAAAAASUVORK5CYII=',
-      'base64',
-    );
+    const sharp = require('sharp');
+    const png = await sharp({
+      create: { width: 1200, height: 800, channels: 3, background: '#123456' },
+    })
+      .png()
+      .toBuffer();
     const upload = await request(app)
       .post('/api/self/images')
       .set('Cookie', owner.cookie)
@@ -496,6 +589,38 @@ describe('Self private journal', () => {
       .attach('file', png, { filename: 'test.png', contentType: 'image/png' });
     expect(upload.status).toBe(201);
     const id = upload.body.id;
+    for (const size of ['thumbnail', 'preview']) {
+      const result = await call(owner, 'get', `/images/${id}?size=${size}`);
+      expect(result.status).toBe(200);
+      expect(result.headers['content-type']).toBe('image/webp');
+      const meta = await sharp(result.body).metadata();
+      expect(meta.width).toBeLessThanOrEqual(size === 'thumbnail' ? 480 : 1600);
+      expect(
+        (await call(other, 'get', `/images/${id}?size=${size}`)).status,
+      ).toBe(404);
+      expect(
+        (await call(null, 'get', `/images/${id}?size=${size}`)).status,
+      ).toBe(401);
+    }
+    const legacy = await Image.create({
+      owner: owner.user._id,
+      data: png,
+      mime: 'image/png',
+      name: 'legacy.png',
+    });
+    expect(
+      (await call(owner, 'get', `/images/${legacy._id}?size=thumbnail`)).status,
+    ).toBe(200);
+    expect(
+      (await Image.findById(legacy._id).select('+thumbnail')).thumbnail.length,
+    ).toBeGreaterThan(0);
+    expect(
+      Buffer.compare(
+        (await Image.findById(legacy._id).select('+data')).data,
+        png,
+      ),
+    ).toBe(0);
+
     expect(
       (await call(owner, 'get', `/images/${id}`)).headers['cache-control'],
     ).toBe('no-store');
