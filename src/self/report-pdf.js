@@ -62,7 +62,7 @@ async function renderReport(input, getImage) {
       await page.pdf({
         format: 'A4',
         preferCSSPageSize: true,
-        printBackground: false,
+        printBackground: true,
         timeout: 25000,
       }),
     );
