@@ -536,7 +536,7 @@ describe('Self private journal', () => {
       ...samples[0],
       owner: owner.user._id,
       occurredAt: new Date('2026-11-26T17:30:00Z'),
-      data: { score: 4, scale: 10 },
+      data: { score: 4, scale: 10, selfHarmUrge: 0, suicideUrge: 2 },
     }));
     rows.push({
       ...rows[0],
@@ -548,14 +548,15 @@ describe('Self private journal', () => {
       occurredAt: new Date('2026-11-26T15:30:00Z'),
       data: { score: 2, scale: 10 },
     });
+    rows.push({ ...rows[0], kind: 'diet', data: { appetite: 7 } });
     await Entry.insertMany(rows);
     const qs =
       'from=2026-11-26T00:00:00Z&to=2026-11-27T23:59:59Z&timezone=Asia%2FTaipei';
     const day = await call(owner, 'get', `/mood-trend?${qs}&period=day`);
     expect(day.status).toBe(200);
     expect(day.body.points).toEqual([
-      { key: '2026-11-26T23', score: 2, count: 1 },
-      { key: '2026-11-27T01', score: 4, count: 20 },
+      { key: '2026-11-26T23', score: 2, selfHarm: null, suicide: null, appetite: null, count: 1 },
+      { key: '2026-11-27T01', score: 4, selfHarm: 0, suicide: 2, appetite: 7, count: 21 },
     ]);
     for (const period of ['week', 'month']) {
       const response = await call(
@@ -564,8 +565,8 @@ describe('Self private journal', () => {
         `/mood-trend?${qs}&period=${period}`,
       );
       expect(response.body.points).toEqual([
-        { key: '2026-11-26', score: 2, count: 1 },
-        { key: '2026-11-27', score: 4, count: 20 },
+        { key: '2026-11-26', score: 2, selfHarm: null, suicide: null, appetite: null, count: 1 },
+        { key: '2026-11-27', score: 4, selfHarm: 0, suicide: 2, appetite: 7, count: 21 },
       ]);
     }
     expect(
