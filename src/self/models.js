@@ -7,6 +7,14 @@ const definitions = {
     new Schema(
       {
         name: String,
+        status: {
+          type: String,
+          enum: ['pending', 'approved', 'rejected', 'suspended'],
+          default: 'approved',
+        },
+        role: { type: String, enum: ['user', 'admin'], default: 'user' },
+        reviewedBy: Schema.Types.ObjectId,
+        reviewedAt: Date,
         email: { type: String, unique: true },
         passwordHash: { type: String, select: false },
       },

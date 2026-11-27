@@ -26,8 +26,10 @@ const {
 const schema = require('./validation');
 const wrap = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
-const fail = (status, message) => Object.assign(new Error(message), { status });
-const hash = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const fail = (status, message) =>
+  Object.assign(new Error(message), { status });
+const hash = (token) =>
+  crypto.createHash('sha256').update(token).digest('hex');
 const tokenOf = (req) =>
   (req.headers.cookie || '')
     .split(';')
@@ -67,6 +69,38 @@ router.use(
     next();
   }),
 );
+const publicUser = (u) => ({
+  id: String(u._id),
+  name: u.name,
+  email: u.email,
+  role: u.role,
+  status: u.status,
+  version: u.__v,
+});
+router.post(
+  '/auth/register',
+  rateLimit({
+    windowMs: 900000,
+    limit: 10,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { message: '申請次數過多，請稍後再試' },
+  }),
+  wrap(async (req, res) => {
+    const { name, email, password } =
+      require('../debt/validation').register.parse(req.body);
+    await User.create({
+      name,
+      email,
+      passwordHash: await bcrypt.hash(password, 12),
+      status: 'pending',
+      role: 'user',
+    });
+    res
+      .status(201)
+      .json({ message: '申請已送出，請等待管理員核准後再登入' });
+  }),
+);
 router.post(
   '/auth/login',
   rateLimit({
@@ -91,6 +125,15 @@ router.post(
       user?.passwordHash || dummy,
     );
     if (!user || !valid) throw fail(401, '電子郵件或密碼不正確');
+    if (user.status !== 'approved')
+      throw fail(
+        403,
+        {
+          pending: '帳號正在等待管理員核准',
+          rejected: '註冊申請未通過，請聯絡管理員',
+          suspended: '帳號已停用，請聯絡管理員',
+        }[user.status] || '帳號無法登入',
+      );
     const old = tokenOf(req);
     if (old) await Session.deleteOne({ tokenHash: hash(old) });
     const token = crypto.randomBytes(32).toString('hex');
@@ -104,7 +147,7 @@ router.post(
       ...cookies(req),
       maxAge: sessionAge,
     });
-    res.json({ user: { name: user.name, email: user.email } });
+    res.json({ user: publicUser(user) });
   }),
 );
 router.post(
@@ -119,19 +162,69 @@ router.post(
 router.use(
   wrap(async (req, res, next) => {
     const token = tokenOf(req);
-    if (!token || !/^[a-f0-9]{64}$/.test(token)) throw fail(401, '請先登入');
+    if (!token || !/^[a-f0-9]{64}$/.test(token))
+      throw fail(401, '請先登入');
     const session = await Session.findOne({
       tokenHash: hash(token),
       expiresAt: { $gt: new Date() },
     });
     const user = session && (await User.findById(session.user));
-    if (!user) throw fail(401, '登入已過期，請重新登入');
+    if (!user || user.status !== 'approved')
+      throw fail(401, '登入已過期，請重新登入');
     req.selfUser = user;
     next();
   }),
 );
 router.get('/auth/me', (req, res) =>
-  res.json({ user: { name: req.selfUser.name, email: req.selfUser.email } }),
+  res.json({ user: publicUser(req.selfUser) }),
+);
+router.use('/admin', (req, res, next) =>
+  req.selfUser.role === 'admin'
+    ? next()
+    : next(fail(403, '需要管理員權限')),
+);
+router.get(
+  '/admin/users',
+  wrap(async (req, res) =>
+    res.json({
+      users: (await User.find().sort({ createdAt: -1 })).map(publicUser),
+    }),
+  ),
+);
+router.patch(
+  '/admin/users/:id',
+  wrap(async (req, res) => {
+    const id = schema.id.parse(req.params.id);
+    const { status, version } =
+      require('../debt/validation').accountStatus.parse(req.body);
+    const target = await User.findById(id);
+    if (!target) throw fail(404, '找不到帳號');
+    if (target.role === 'admin')
+      throw fail(403, '管理員帳號需透過伺服器管理');
+    const allowed = {
+      pending: ['approved', 'rejected'],
+      approved: ['suspended'],
+      rejected: ['approved'],
+      suspended: ['approved'],
+    };
+    if (!allowed[target.status]?.includes(status))
+      throw fail(422, '無效的帳號狀態變更');
+    const user = await User.findOneAndUpdate(
+      { _id: id, __v: version, status: target.status, role: 'user' },
+      {
+        $set: {
+          status,
+          reviewedBy: req.selfUser._id,
+          reviewedAt: new Date(),
+        },
+        $inc: { __v: 1 },
+      },
+      { new: true },
+    );
+    if (!user) throw fail(409, '帳號已變更，請重新整理');
+    if (status !== 'approved') await Session.deleteMany({ user: id });
+    res.json({ user: publicUser(user) });
+  }),
 );
 router.post(
   '/report-pdf',
@@ -203,7 +296,8 @@ router.delete(
       owner: req.selfUser._id,
       __v: version,
     });
-    if (!result.deletedCount) throw fail(409, '紀錄已變更或不存在，請重新整理');
+    if (!result.deletedCount)
+      throw fail(409, '紀錄已變更或不存在，請重新整理');
     res.json({ ok: true });
   }),
 );
@@ -299,12 +393,18 @@ router.get(
 );
 router.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
+  if (error.code === 11000)
+    return res
+      .status(409)
+      .json({ message: '此電子郵件已申請或註冊，請登入或聯絡管理員' });
   if (error instanceof z.ZodError)
     return res
       .status(422)
       .json({ message: error.issues[0]?.message || '請檢查欄位內容' });
   if (error instanceof multer.MulterError)
-    return res.status(422).json({ message: '一次限一張圖片，每張上限 5 MB' });
+    return res
+      .status(422)
+      .json({ message: '一次限一張圖片，每張上限 5 MB' });
   res.status(error.status || 500).json({
     message: error.status ? error.message : '服務暫時無法使用，請稍後重試',
   });

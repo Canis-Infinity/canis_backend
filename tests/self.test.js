@@ -73,6 +73,110 @@ describe('Self private journal', () => {
     });
     return { user, cookie: `self_session=${token}` };
   }
+  it('requires approval, restricts reviews, and revokes suspended sessions', async () => {
+    const input = {
+      name: '申請者',
+      email: 'new@example.test',
+      password: 'registration-test-password',
+    };
+    expect(
+      (
+        await call(null, 'post', '/auth/register', {
+          ...input,
+          role: 'admin',
+        })
+      ).status,
+    ).toBe(422);
+    expect((await call(null, 'post', '/auth/register', input)).status).toBe(
+      201,
+    );
+    const pending = await User.findOne({ email: input.email }).select(
+      '+passwordHash',
+    );
+    expect(pending.status).toBe('pending');
+    expect(pending.role).toBe('user');
+    expect(pending.passwordHash).not.toBe(input.password);
+    expect(
+      (
+        await call(null, 'post', '/auth/register', {
+          ...input,
+          email: 'NEW@example.test',
+        })
+      ).status,
+    ).toBe(409);
+    const credentials = { email: input.email, password: input.password };
+    expect(
+      (await call(null, 'post', '/auth/login', credentials)).status,
+    ).toBe(403);
+    expect((await call(owner, 'get', '/admin/users')).status).toBe(403);
+    expect(
+      (
+        await call(other, 'patch', `/admin/users/${pending.id}`, {
+          status: 'approved',
+          version: 0,
+        })
+      ).status,
+    ).toBe(403);
+    await User.updateOne(
+      { _id: owner.user._id },
+      { $set: { role: 'admin' } },
+    );
+    const rejected = await call(
+      owner,
+      'patch',
+      `/admin/users/${pending.id}`,
+      { status: 'rejected', version: 0 },
+    );
+    expect(rejected.status).toBe(200);
+    expect(
+      (await call(null, 'post', '/auth/login', credentials)).status,
+    ).toBe(403);
+    expect(
+      (
+        await call(owner, 'patch', `/admin/users/${pending.id}`, {
+          status: 'approved',
+          version: 0,
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await call(owner, 'patch', `/admin/users/${pending.id}`, {
+          status: 'approved',
+          version: 1,
+        })
+      ).status,
+    ).toBe(200);
+    const logged = await call(null, 'post', '/auth/login', credentials);
+    expect(logged.status).toBe(200);
+    const identity = {
+      cookie: logged.headers['set-cookie'][0].split(';')[0],
+    };
+    expect((await call(identity, 'get', '/entries')).status).toBe(200);
+    expect(
+      (
+        await call(owner, 'patch', `/admin/users/${pending.id}`, {
+          status: 'suspended',
+          version: 2,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await call(identity, 'get', '/entries')).status).toBe(401);
+    expect(
+      (await call(null, 'post', '/auth/login', credentials)).status,
+    ).toBe(403);
+    expect(
+      (
+        await call(owner, 'patch', `/admin/users/${owner.user.id}`, {
+          status: 'suspended',
+          version: 0,
+        })
+      ).status,
+    ).toBe(403);
+    const list = await call(owner, 'get', '/admin/users');
+    expect(list.status).toBe(200);
+    expect(JSON.stringify(list.body)).not.toContain('passwordHash');
+  });
   beforeAll(async () => {
     mongo = await MongoMemoryServer.create();
     await mongoose.connect(mongo.getUri(), { dbName: 'self_test' });
