@@ -5,6 +5,7 @@ module.exports = async function trend(req) {
     .object({
       from: z.iso.datetime({ offset: true }),
       to: z.iso.datetime({ offset: true }),
+      q: z.string().trim().max(200).default(""),
       period: z.enum(["day", "week", "month"]),
       timezone: z
         .string()
@@ -21,12 +22,15 @@ module.exports = async function trend(req) {
     .parse(req.query);
   const from = new Date(q.from),
     to = new Date(q.to);
-  if (to < from || to - from > 32 * 86400000)
+  if (to < from)
     throw Object.assign(new Error("圖表日期區間無效"), { status: 422 });
+  const localDay = (date) => new Intl.DateTimeFormat('en-CA', { timeZone: q.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const unit = q.period === 'day' && localDay(from) === localDay(to) ? 'hour' : q.period;
   const points = await Entry.aggregate([
     {
       $match: {
         owner: req.selfUser._id,
+        ...require("./search")(q.q),
         kind: { $in: ["mood", "diet"] },
         occurredAt: { $gte: from, $lte: to },
       },
@@ -35,9 +39,9 @@ module.exports = async function trend(req) {
       $group: {
         _id: {
           $dateToString: {
-            date: "$occurredAt",
+            date: { $dateTrunc: { date: "$occurredAt", unit, timezone: q.timezone, startOfWeek: "Sunday" } },
             timezone: q.timezone,
-            format: q.period === "day" ? "%Y-%m-%dT%H" : "%Y-%m-%d",
+            format: unit === "hour" ? "%Y-%m-%dT%H" : "%Y-%m-%d",
           },
         },
         score: {
@@ -89,5 +93,5 @@ module.exports = async function trend(req) {
       },
     },
   ]);
-  return { points };
+  return { points, unit };
 };

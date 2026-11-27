@@ -44,26 +44,7 @@ module.exports = async function list(req, serialize) {
       ...(query.from && { $gte: new Date(query.from) }),
       ...(query.to && { $lte: new Date(query.to) }),
     };
-  if (query.q) {
-    const escaped = query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    filter.$or = [
-      'data.food',
-      'data.drinks',
-      'title',
-      'note',
-      'data.emotions',
-      'data.trigger',
-      'data.reaction',
-      'data.content',
-      'data.prompt',
-      'data.gratitude',
-      'data.questions',
-      'data.medicine',
-      'data.dose',
-      'data.unit',
-      'data.number',
-    ].map((field) => ({ [field]: { $regex: escaped, $options: 'i' } }));
-  }
+  Object.assign(filter, require('./search')(query.q));
   const total = await Entry.countDocuments(filter);
   const pages = Math.ceil(total / query.limit);
   const page = Math.min(query.page, Math.max(1, pages));

@@ -555,8 +555,8 @@ describe('Self private journal', () => {
     const day = await call(owner, 'get', `/mood-trend?${qs}&period=day`);
     expect(day.status).toBe(200);
     expect(day.body.points).toEqual([
-      { key: '2026-11-26T23', score: 2, selfHarm: null, suicide: null, appetite: null, count: 1 },
-      { key: '2026-11-27T01', score: 4, selfHarm: 0, suicide: 2, appetite: 7, count: 21 },
+      { key: '2026-11-26', score: 2, selfHarm: null, suicide: null, appetite: null, count: 1 },
+      { key: '2026-11-27', score: 4, selfHarm: 0, suicide: 2, appetite: 7, count: 21 },
     ]);
     for (const period of ['week', 'month']) {
       const response = await call(
@@ -565,10 +565,21 @@ describe('Self private journal', () => {
         `/mood-trend?${qs}&period=${period}`,
       );
       expect(response.body.points).toEqual([
-        { key: '2026-11-26', score: 2, selfHarm: null, suicide: null, appetite: null, count: 1 },
-        { key: '2026-11-27', score: 4, selfHarm: 0, suicide: 2, appetite: 7, count: 21 },
+        { key: period === 'week' ? '2026-11-22' : '2026-11-01', score: 82 / 21, selfHarm: 0, suicide: 2, appetite: 7, count: 22 },
       ]);
     }
+    const hourly = await call(owner, 'get', '/mood-trend?from=2026-11-26T16:00:00Z&to=2026-11-27T15:59:59Z&timezone=Asia%2FTaipei&period=day');
+    expect(hourly.body.unit).toBe('hour');
+    expect(hourly.body.points[0].key).toBe('2026-11-27T01');
+    expect(hourly.body.points[0].count).toBe(21);
+    await Entry.updateMany({ owner: owner.user._id, kind: 'diet' }, { $set: { note: '餐點[測試]' } });
+    const matched = await call(owner, 'get', `/mood-trend?${qs}&period=week&q=${encodeURIComponent('餐點[測試]')}`);
+    expect(matched.body.points).toEqual([{ key: '2026-11-22', score: null, selfHarm: null, suicide: null, appetite: 7, count: 1 }]);
+    const noMatch = await call(owner, 'get', `/mood-trend?${qs}&period=week&q=notfound.*`);
+    expect(noMatch.body.points).toEqual([]);
+    const longRange = await call(owner, 'get', '/mood-trend?from=2026-01-01T00:00:00Z&to=2026-12-31T23:59:59Z&timezone=Asia%2FTaipei&period=month');
+    expect(longRange.status).toBe(200);
+    expect(longRange.body.points).toHaveLength(1);
     expect(
       (await call(null, 'get', `/mood-trend?${qs}&period=day`)).status,
     ).toBe(401);
