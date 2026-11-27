@@ -76,6 +76,7 @@ const publicUser = (u) => ({
   role: u.role,
   status: u.status,
   version: u.__v,
+  createdAt: u.createdAt,
 });
 router.post(
   '/auth/register',
